@@ -11,7 +11,7 @@
 // --- KONFIGURATIONEN ---
 // WLAN Access Point
 const char *ssid = "ESP32-C3_Sensor";
-const char *password = "start1234"; 
+const char *password = "Solarhaus"; 
 
 // Hardware Pins
 const int ANALOG_PIN = 2; // ADC-Eingang für die Spannung
@@ -32,11 +32,30 @@ AsyncWebServer server(80);
 volatile bool pin7State = LOW; 
 volatile bool pin6State = LOW; 
 
+// IMU
+#include <Wire.h>
+#include "GY521.h"
+
+// I2C Pins (Standard für ESP32-C3 ist oft SDA=8, SCL=10, 
+// aber prüfen Sie Ihr spezifisches Board. Wir verwenden die Standard-Pins.
+#define SDA_PIN 3 
+#define SCL_PIN 4
+
+GY521 sensor(0x68); // Erstellt ein GY521-Objekt mit der Standard-I2C-Adresse
+
+// Queue für die Sensordaten: Beschleunigung (X, Y, Z) und Temperatur (T)
+struct SensorData {
+    float accelX;
+    float accelY;
+    float accelZ;
+    float temperature;
+};
+QueueHandle_t sensorQueue;
 // --- FREERTOS TASKS KONFIGURATION ---
 const int READ_TASK_PRIORITY = 2; 
 const int LED_TASK_PRIORITY = 1;  
 const int WEB_TASK_PRIORITY = 2; 
-
+const int SENSOR_TASK_PRIORITY = 2; 
 
 // -------------------------------------------------------------------
 // HTML-CODE FÜR DIE WEBSEITE
@@ -60,6 +79,15 @@ const char index_html[] PROGMEM = R"rawliteral(
   <div class="container">
     <h2>ESP32-C3 Steuerung</h2>
     <div class="voltage-display">Spannung: <span id="voltage">%VOLTAGE%</span> V</div>
+    <hr>
+
+    <h3>MPU-6050 Beschleunigung (g) & Temp (&deg;C)</h3>
+    <p>
+      X: <span id="accelX">0.00</span> | 
+      Y: <span id="accelY">0.00</span> | 
+      Z: <span id="accelZ">0.00</span> 
+    </p>
+    <p>Temperatur: <span id="temp">0.0</span> &deg;C</p>
     <hr>
     
     <h3>Beide LEDs (7 & 6) steuern</h3>
@@ -103,11 +131,17 @@ const char index_html[] PROGMEM = R"rawliteral(
           document.getElementById('voltage').innerHTML = json.voltage;
           document.getElementById('gpio7_state').innerHTML = json.pin7State;
           document.getElementById('gpio6_state').innerHTML = json.pin6State;
+
+          // NEUE UPDATES FÜR MPU-6050
+        document.getElementById('accelX').innerHTML = json.accelX;
+        document.getElementById('accelY').innerHTML = json.accelY;
+        document.getElementById('accelZ').innerHTML = json.accelZ;
+        document.getElementById('temp').innerHTML = json.temp;
         }
       };
       xhr.open("GET", "/status", true);
       xhr.send();
-    }, 10); // Alle 10ms aktualisieren
+    }, 50); // Alle 10ms aktualisieren
   </script>
 </body>
 </html>
@@ -168,39 +202,79 @@ void ReadVoltageTask(void *parameter) {
 // TASK 2: NeoPixel LEDs steuern (Consumer/Reader)
 // -------------------------------------------------------------------
 void NeoPixelTask(void *parameter) {
-  
-  Adafruit_NeoPixel pixels(NUM_PIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
-  pixels.begin();
-  pixels.setBrightness(100); 
-  pixels.clear(); 
-  pixels.show();
-  
-  float receivedVoltage = 0.0;
-  
-  for (;;) { 
     
-    // Liest den Wert mit Peek, ohne ihn zu entfernen (WICHTIGE ÄNDERUNG)
-    if (xQueuePeek(voltageQueue, &receivedVoltage, 0) == pdPASS) {
-      
-      float normalizedValue = (receivedVoltage - MIN_V) / (MAX_V - MIN_V);
-      normalizedValue = constrain(normalizedValue, 0.0, 1.0);
-
-      int brightness = (int)(normalizedValue * 255);
-      pixels.setBrightness(brightness);
-
-      int blue = (int)((1.0 - normalizedValue) * 255); 
-      int green = (int)(normalizedValue * 255);       
-
-      uint32_t color = pixels.Color(0, green, blue); 
-
-      for (int i = 0; i < NUM_PIXELS; i++) {
-        pixels.setPixelColor(i, color);
-      }
-      pixels.show();
-    } 
+    Adafruit_NeoPixel pixels(NUM_PIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+    pixels.begin();
+    pixels.setBrightness(30); 
+    pixels.clear(); 
+    pixels.show();
     
-    vTaskDelay(pdMS_TO_TICKS(10)); 
-  }
+    float receivedVoltage = 0.0;
+    
+    for (;;) { 
+        
+        // Liest den Wert mit Peek, ohne ihn zu entfernen
+        if (xQueuePeek(voltageQueue, &receivedVoltage, 0) == pdPASS) {
+            
+            // 1. Normalisierung der Spannung (0.0 bis 1.0)
+            float normalizedValue = (receivedVoltage - MIN_V) / (MAX_V - MIN_V);
+            normalizedValue = constrain(normalizedValue, 0.0, 1.0);
+            
+            // 2. Skalierung des Wertes für die 3 LEDs (0.0 bis 3.0)
+            float scaledValue = normalizedValue * NUM_PIXELS; // z.B. 0.0 bis 3.0
+
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                uint32_t color = 0;
+                
+                // Schwellenwert für das Einschalten der LED i
+                if (scaledValue > (float)i) {
+                    
+                    // 3. Berechnung der Helligkeit (Brightness) und Farbe 
+                    //    innerhalb des aktuellen LED-Segments.
+                    
+                    // Der 'brightnessFactor' geht von 0.0 bis 1.0 für das Segment,
+                    // das gerade leuchtet oder gerade aufgefüllt wird.
+                    float brightnessFactor = scaledValue - (float)i;
+                    brightnessFactor = constrain(brightnessFactor, 0.0, 1.0);
+                    
+                    // Beispiel: 
+                    // i=0 (LED 1): Segment 0.0 - 1.0
+                    // i=1 (LED 2): Segment 1.0 - 2.0
+                    // i=2 (LED 3): Segment 2.0 - 3.0
+
+                    // **Farbverlauf:** Blau (niedrig) -> Grün (mittel) -> Rot (hoch)
+                    // Die Farbe wird basierend auf dem globalen normalizedValue bestimmt,
+                    // damit alle aktiven LEDs die gleiche Farbe haben.
+                    
+                    int blue = 0;
+                    int green = 0;
+                    int red = 0;
+
+                    if (normalizedValue < 0.5) {
+                        // Von Blau nach Grün (0.0 bis 0.5)
+                        float mapValue = normalizedValue * 2.0; // 0.0 -> 1.0
+                        blue = (int)((1.0 - mapValue) * 255 * brightnessFactor); 
+                        green = (int)(mapValue * 255 * brightnessFactor);
+                    } else {
+                        // Von Grün nach Rot (0.5 bis 1.0)
+                        float mapValue = (normalizedValue - 0.5) * 2.0; // 0.0 -> 1.0
+                        green = (int)((1.0 - mapValue) * 255 * brightnessFactor); 
+                        red = (int)(mapValue * 255 * brightnessFactor);
+                    }
+                    
+                    // Helligkeit fixieren und Farbe setzen
+                    pixels.setBrightness(255); // Oder eine konstante Helligkeit für bessere Sichtbarkeit
+                    color = pixels.Color(red, green, blue);
+                } 
+                // Wenn scaledValue <= i, ist die LED aus (Farbe = 0)
+                pixels.setPixelColor(i, color); 
+            }
+
+            pixels.show();
+        } 
+        
+        vTaskDelay(pdMS_TO_TICKS(10)); 
+    }
 }
 
 
@@ -263,24 +337,75 @@ server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request) {
 });
 
   // 3. Status-Route (für JavaScript-Updates)
-  server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     float currentVoltage = 0.0;
-    
-    // Liest den neuesten Wert, ohne ihn zu entfernen
+    SensorData currentSensorData;
+
+    // Liest den neuesten Spannungswert
     xQueuePeek(voltageQueue, &currentVoltage, 0); 
+    
+    // NEU: Liest die neuesten Sensordaten
+    xQueuePeek(sensorQueue, &currentSensorData, 0); 
     
     String json = "{\"voltage\":\"" + String(currentVoltage, 3) + 
                   "\",\"pin7State\":\"" + (pin7State ? "AN" : "AUS") + 
-                  "\",\"pin6State\":\"" + (pin6State ? "AN" : "AUS") + "\"}";
+                  "\",\"pin6State\":\"" + (pin6State ? "AN" : "AUS") + 
                   
+                  // NEUE SENSOREINTRÄGE
+                  "\",\"accelX\":\"" + String(currentSensorData.accelX, 2) + 
+                  "\",\"accelY\":\"" + String(currentSensorData.accelY, 2) + 
+                  "\",\"accelZ\":\"" + String(currentSensorData.accelZ, 2) + 
+                  "\",\"temp\":\"" + String(currentSensorData.temperature, 1) + 
+                  "\"}";
+                      
     request->send(200, "application/json", json);
-  });
+});
 
   server.begin();
 
   for (;;) {
     vTaskDelay(pdMS_TO_TICKS(10));
   }
+}
+
+// -------------------------------------------------------------------
+// TASK 4: GY-521 Beschleunigungssensor auslesen
+// -------------------------------------------------------------------
+void ReadSensorTask(void *parameter) {
+    
+    // I2C initialisieren
+    Wire.begin(SDA_PIN, SCL_PIN); 
+    sensor.begin(); 
+
+    // Kalibrierung (wichtig für genaue Messungen)
+    Serial.println("SENSOR_TASK: Starte Kalibrierung des GY-521...");
+    sensor.calibrate(100); 
+    Serial.println("SENSOR_TASK: Kalibrierung abgeschlossen.");
+    
+    // Initialisiere Queue mit 0-Werten
+    SensorData initialData = {0.0, 0.0, 0.0, 0.0};
+    xQueueOverwrite(sensorQueue, &initialData);
+
+    for (;;) { 
+        
+        // Liest alle Sensordaten
+        sensor.read();
+
+        // Speichert die g-Werte (Beschleunigung) und Temperatur
+        SensorData currentData;
+        currentData.accelX = sensor.getAccelX();
+        currentData.accelY = sensor.getAccelY();
+        currentData.accelZ = sensor.getAccelZ();
+        currentData.temperature = sensor.getTemperature();
+
+        Serial.printf("SENSOR_TASK: X: %.2f | Y: %.2f | Z: %.2f | T: %.1f\n", 
+                      currentData.accelX, currentData.accelY, currentData.accelZ, currentData.temperature);
+
+        // Sendet die Daten an die Queue (Overwrite-Modus)
+        xQueueOverwrite(sensorQueue, &currentData);
+        
+        vTaskDelay(pdMS_TO_TICKS(100)); // Leseintervall: 100ms
+    }
 }
 
 // -------------------------------------------------------------------
@@ -293,15 +418,19 @@ void setup() {
   // Erstelle die Queue mit Größe 1 (Overwritten-Modus)
   voltageQueue = xQueueCreate(1, sizeof(float));
 
-  if (voltageQueue == NULL) {
-    Serial.println("Fehler: Konnte die FreeRTOS Queue nicht erstellen.");
-    while(1); 
-  }
+  // NEU: Erstelle die Sensor-Queue
+    sensorQueue = xQueueCreate(1, sizeof(SensorData));
+
+    if (voltageQueue == NULL || sensorQueue == NULL) {
+        Serial.println("Fehler: Konnte eine FreeRTOS Queue nicht erstellen.");
+        while(1); 
+    }
 
   // Erstelle die drei Tasks
   xTaskCreate(ReadVoltageTask, "ReadVoltageTask", 4096, NULL, READ_TASK_PRIORITY, NULL);
   xTaskCreate(NeoPixelTask, "NeoPixelTask", 4096, NULL, LED_TASK_PRIORITY, NULL);
   xTaskCreate(WebServerTask, "WebServerTask", 8192, NULL, WEB_TASK_PRIORITY, NULL);
+  xTaskCreate(ReadSensorTask, "ReadSensorTask", 4096, NULL, SENSOR_TASK_PRIORITY, NULL);
 }
 
 void loop() {

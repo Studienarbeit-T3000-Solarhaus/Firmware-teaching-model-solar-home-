@@ -10,8 +10,8 @@ AsyncWebServer server(80);
 const char *ssid = "ESP32-C3_Sensor";
 const char *password = "Solarhaus";
 
-const int GPIO_PIN_7 = 7;
-const int GPIO_PIN_6 = 6;
+const int GPIO_PIN_7 = 21;
+const int GPIO_PIN_6 = 20;
 volatile bool pin7State = LOW;
 volatile bool pin6State = LOW;
 

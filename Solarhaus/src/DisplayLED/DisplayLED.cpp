@@ -3,10 +3,10 @@
 #include "VoltageReader\VoltageReader.h" // Um Zugriff auf voltageQueue zu haben
 
 // --- Hardware Konfiguration ---
-const int NEOPIXEL_PIN = 9; 
+const int NEOPIXEL_PIN = 3; 
 const int NUM_PIXELS = 3; 
 const float MIN_V = 0.3; // Untergrenze der Spannung für die Skala
-const float MAX_V = 0.9; // Obergrenze der Spannung für die Skala
+const float MAX_V = 2.8; // Obergrenze der Spannung für die Skala
 
 void NeoPixelTask(void *parameter) {
     // Initialisierung der NeoPixel

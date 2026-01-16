@@ -4,15 +4,13 @@
 
 // Definition der Queue
 QueueHandle_t sensorQueue;
-
+extern SemaphoreHandle_t i2cMutex;
 // Hardware-Pins (wie in deiner main.cpp definiert)
-#define SDA_PIN 3 
-#define SCL_PIN 4
+
 GY521 sensor(0x68); 
 
 void ReadSensorTask(void *parameter) {
-    // I2C initialisieren
-    Wire.begin(SDA_PIN, SCL_PIN); 
+ 
     sensor.begin(); 
 
     // Kalibrierung
@@ -25,7 +23,10 @@ void ReadSensorTask(void *parameter) {
     xQueueOverwrite(sensorQueue, &initialData);
 
     for (;;) { 
-        sensor.read(); // Daten vom Sensor lesen
+    if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+    sensor.read(); 
+    xSemaphoreGive(i2cMutex);
+}
 
         SensorData currentData;
         currentData.accelX = sensor.getAccelX();

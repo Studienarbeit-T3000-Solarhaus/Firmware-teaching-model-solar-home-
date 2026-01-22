@@ -12,21 +12,31 @@ void TestGPIOExtensionTask(void *parameter) {
             mcp.digitalWrite(LED_PIN, HIGH); // Setze GPA0 auf HIGH
             xSemaphoreGive(i2cMutex);
         }
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Warte 1 Sekunde
+        vTaskDelay(pdMS_TO_TICKS(100)); // Warte 1 Sekunde
         if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
             mcp.digitalWrite(LED_PIN, LOW); // Setze GPA0 auf LOW
             xSemaphoreGive(i2cMutex);
         }
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Warte 1 Sekunde
+        vTaskDelay(pdMS_TO_TICKS(100)); // Warte 1 Sekunde
         float current_mA = 0.0;
+        float power_mW = 0.0;
+        float Voltage_V = 0.0;
         if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
             current_mA = ina219.getCurrent_mA();
+            power_mW = ina219.getPower_mW();
+            Voltage_V = ina219.getBusVoltage_V();
             xSemaphoreGive(i2cMutex);
         }
         
         Serial.print(" | Strom: ");
         Serial.print(current_mA);
         Serial.println(" mA");
+        Serial.print(" | Leistung: ");
+        Serial.print(power_mW); 
+        Serial.println(" mW");
+        Serial.print(" | Spannung: ");
+        Serial.print(Voltage_V);
+        Serial.println(" V");
     }
 }
 

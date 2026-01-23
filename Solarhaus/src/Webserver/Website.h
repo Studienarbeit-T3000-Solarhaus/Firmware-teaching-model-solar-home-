@@ -3,93 +3,114 @@
 
 #include <Arduino.h>
 
-
-
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML>
 <html>
 <head>
-  <title>ESP32-C3 Steuerung & Sensor</title>
+  <title>Solarhaus Steuerung</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: Arial; text-align: center; margin:auto; padding-top: 30px;}
-    .container { max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid #ccc; border-radius: 10px; }
-    .btn { padding: 10px 20px; font-size: 16px; margin: 5px; cursor: pointer; border: none; border-radius: 5px; color: white; }
-    .btn-on { background-color: #4CAF50; }
-    .btn-off { background-color: #f44336; }
-    .voltage-display { font-size: 24px; color: #007bff; margin-top: 20px; font-weight: bold; }
+    body { font-family: Arial; text-align: center; margin: 0; padding: 20px; background-color: #f4f4f4; }
+    .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    h3 { margin-top: 20px; border-bottom: 2px solid #ddd; padding-bottom: 5px; }
+    
+    .grid-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+    
+    .btn { 
+      padding: 15px 20px; font-size: 16px; cursor: pointer; 
+      border: none; border-radius: 5px; color: white; width: 100px;
+      transition: background 0.3s;
+    }
+    .btn-on { background-color: #28a745; box-shadow: 0 4px #1e7e34; } /* Grün */
+    .btn-off { background-color: #dc3545; box-shadow: 0 4px #a71d2a; } /* Rot */
+    .btn:active { box-shadow: 0 2px #666; transform: translateY(2px); }
+
+    .voltage-display { font-size: 28px; color: #007bff; font-weight: bold; margin: 10px 0; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h2>ESP32-C3 Steuerung</h2>
+    <h2>☀️ Solarhaus Zentrale 🔋</h2>
     <div class="voltage-display">Spannung: <span id="voltage">%VOLTAGE%</span> V</div>
-    <hr>
 
-    <h3>MPU-6050 Beschleunigung (g) & Temp (&deg;C)</h3>
-    <p>
-      X: <span id="accelX">0.00</span> | 
-      Y: <span id="accelY">0.00</span> | 
-      Z: <span id="accelZ">0.00</span> 
-    </p>
-    <p>Temperatur: <span id="temp">0.0</span> &deg;C</p>
-    <hr>
-    
-    <h3>Beide LEDs (7 & 6) steuern</h3>
-    <button class="btn btn-on" onclick="toggleBoth(1)">ALLE AN</button>
-    <button class="btn btn-off" onclick="toggleBoth(0)">ALLE AUS</button>
-    <hr>
-    
-    <h3>GPIO 7 Steuerung</h3>
-    <p>Aktueller Status: <span id="gpio7_state">%GPIO_7_STATE%</span></p>
-    <button class="btn btn-on" onclick="toggleGPIO(7, 1)">AN</button>
-    <button class="btn btn-off" onclick="toggleGPIO(7, 0)">AUS</button>
+    <h3>Solarzellen (4x)</h3>
+    <div class="grid-container">
+      <button id="solar_0" class="btn btn-off" onclick="toggle('solar', 0)">Solar 1</button>
+      <button id="solar_1" class="btn btn-off" onclick="toggle('solar', 1)">Solar 2</button>
+      <button id="solar_2" class="btn btn-off" onclick="toggle('solar', 2)">Solar 3</button>
+      <button id="solar_3" class="btn btn-off" onclick="toggle('solar', 3)">Solar 4</button>
+    </div>
 
-    <h3>GPIO 6 Steuerung</h3>
-    <p>Aktueller Status: <span id="gpio6_state">%GPIO_6_STATE%</p>
-    <button class="btn btn-on" onclick="toggleGPIO(6, 1)">AN</button>
-    <button class="btn btn-off" onclick="toggleGPIO(6, 0)">AUS</button>
+    <h3>Akkuspeicher (4x)</h3>
+    <div class="grid-container">
+      <button id="akku_0" class="btn btn-off" onclick="toggle('akku', 0)">Akku 1</button>
+      <button id="akku_1" class="btn btn-off" onclick="toggle('akku', 1)">Akku 2</button>
+      <button id="akku_2" class="btn btn-off" onclick="toggle('akku', 2)">Akku 3</button>
+      <button id="akku_3" class="btn btn-off" onclick="toggle('akku', 3)">Akku 4</button>
+    </div>
+
+    <h3>Verbraucher (2x)</h3>
+    <div class="grid-container">
+      <button id="load_0" class="btn btn-off" onclick="toggle('load', 0)">💡 Licht</button>
+      <button id="load_1" class="btn btn-off" onclick="toggle('load', 1)">🧺 Waschm.</button>
+    </div>
   </div>
   
   <script>
-    function toggleGPIO(pin, state) {
-      // Steuerung für einzelne Pins bleibt
+    // Lokaler Speicher für Zustände, um Toggle zu ermöglichen
+    var states = {
+      solar: [0,0,0,0],
+      akku: [0,0,0,0],
+      load: [0,0]
+    };
+
+    function toggle(type, idx) {
+      // Zustand umkehren (0->1, 1->0)
+      var newState = states[type][idx] ? 0 : 1;
+      
       var xhr = new XMLHttpRequest();
-      xhr.open("GET", "/set?pin=" + pin + "&state=" + state, true);
+      xhr.open("GET", "/set?type=" + type + "&idx=" + idx + "&state=" + newState, true);
       xhr.send();
+      
+      // UI sofort aktualisieren für besseres Feedback (wird später durch Server-Status korrigiert)
+      updateButtonColor(type, idx, newState);
+      states[type][idx] = newState;
     }
 
-    function toggleBoth(state) {
-      // Neue Funktion sendet Status für beide Pins in einer Anfrage
-      var xhr = new XMLHttpRequest();
-      xhr.open("GET", "/set?pin7state=" + state + "&pin6state=" + state, true);
-      xhr.send();
+    function updateButtonColor(type, idx, state) {
+      var btn = document.getElementById(type + "_" + idx);
+      if(state == 1) {
+        btn.className = "btn btn-on";
+      } else {
+        btn.className = "btn btn-off";
+      }
     }
-    
-    // Funktion zur Aktualisierung der Daten vom Server (AJAX/Polling)
+
+    // Regelmäßiges Abfragen der Daten
     setInterval(function() {
       var xhr = new XMLHttpRequest();
       xhr.onreadystatechange = function() {
         if (this.readyState == 4 && this.status == 200) {
           var json = JSON.parse(this.responseText);
-          // Spannung und GPIO-Status aktualisieren
+          
           document.getElementById('voltage').innerHTML = json.voltage;
-          document.getElementById('gpio7_state').innerHTML = json.pin7State;
-          document.getElementById('gpio6_state').innerHTML = json.pin6State;
 
-          // NEUE UPDATES FÜR MPU-6050
-        document.getElementById('accelX').innerHTML = json.accelX;
-        document.getElementById('accelY').innerHTML = json.accelY;
-        document.getElementById('accelZ').innerHTML = json.accelZ;
-        document.getElementById('temp').innerHTML = json.temp;
+          // Arrays vom Server übernehmen und Buttons aktualisieren
+          states.solar = json.solar;
+          states.akku = json.akku;
+          states.load = json.load;
+
+          for(var i=0; i<4; i++) updateButtonColor('solar', i, states.solar[i]);
+          for(var i=0; i<4; i++) updateButtonColor('akku', i, states.akku[i]);
+          for(var i=0; i<2; i++) updateButtonColor('load', i, states.load[i]);
         }
       };
       xhr.open("GET", "/status", true);
       xhr.send();
-    }, 50); // Alle 10ms aktualisieren
+    }, 50);
   </script>
 </body>
 </html>
 )rawliteral";
 
-#endif // WEBPAGES_H
+#endif

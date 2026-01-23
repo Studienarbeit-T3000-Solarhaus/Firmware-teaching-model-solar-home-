@@ -2,7 +2,7 @@
 #include "VoltageReader\VoltageReader.h"
 #include "DisplayLED\DisplayLED.h"
 #include "Webserver\Webserver.h"
-#include "IMUSensor\IMUSensor.h"
+#include "DisplayLED\LedStrip.hpp"
 
 void setup() {
     Serial.begin(115200);
@@ -10,9 +10,9 @@ void setup() {
 
     // Starte alle Module
     startVoltageTask();
-    startLEDTask();
+    //startLEDTask();
     startWebTask();
-    startIMUSensorTask();
+    startLedStripTask();
 }
 
 void loop() {

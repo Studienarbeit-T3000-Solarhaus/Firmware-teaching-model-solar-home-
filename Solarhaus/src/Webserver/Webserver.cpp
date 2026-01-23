@@ -2,85 +2,104 @@
 #include "Website.h"
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
-#include "VoltageReader\VoltageReader.h" // Um auf voltageQueue zuzugreifen
-#include "IMUSensor\IMUSensor.h"  // Um auf sensorQueue zuzugreifen
+#include "VoltageReader\VoltageReader.h"
 
-// Externe Variablen deklarieren (aus main.cpp übernommen)
 AsyncWebServer server(80);
 const char *ssid = "ESP32-C3_Sensor";
 const char *password = "Solarhaus";
 
-const int GPIO_PIN_7 = 7;
-const int GPIO_PIN_6 = 6;
-volatile bool pin7State = LOW;
-volatile bool pin6State = LOW;
+// --- KONFIGURATION DER PINS ---
+// Bitte hier deine tatsächlichen GPIO-Nummern eintragen!
+//const int SOLAR_PINS[4] = {2, 3, 4, 5};   // Beispiel-Pins
+//const int AKKU_PINS[4]  = {6, 7, 8, 9};   // Beispiel-Pins
+//const int LOAD_PINS[2]  = {10, 1};        // Beispiel-Pins
 
-// Processor für Platzhalter im HTML
+// Status-Speicher
+bool SolarMosfets[4] = {false};
+bool BatteryMosfets[4]  = {false};
+bool LoadMosfets[2]  = {false};
+
+// Hilfsfunktion zum Initialisieren
+void initPins() {
+    //for(int i=0; i<4; i++) { pinMode(SOLAR_PINS[i], OUTPUT); digitalWrite(SOLAR_PINS[i], LOW); }
+    //for(int i=0; i<4; i++) { pinMode(AKKU_PINS[i], OUTPUT); digitalWrite(AKKU_PINS[i], LOW); }
+    //for(int i=0; i<2; i++) { pinMode(LOAD_PINS[i], OUTPUT); digitalWrite(LOAD_PINS[i], LOW); }
+}
+
 String processor(const String& var) {
+    // Einfache Platzhalter, falls nötig. 
+    // Die UI aktualisiert sich aber hauptsächlich über JSON /status
     float currentVoltage = 0.0;
     xQueuePeek(voltageQueue, &currentVoltage, 0);
-    
     if(var == "VOLTAGE") return String(currentVoltage, 3);
-    if(var == "GPIO_7_STATE") return pin7State ? "AN" : "AUS";
-    if(var == "GPIO_6_STATE") return pin6State ? "AN" : "AUS";
     return String();
 }
 
 void WebServerTask(void *parameter) {
-    pinMode(GPIO_PIN_7, OUTPUT);
-    pinMode(GPIO_PIN_6, OUTPUT);
-    digitalWrite(GPIO_PIN_7, pin7State);
-    digitalWrite(GPIO_PIN_6, pin6State);
+    initPins(); // Pins auf Output setzen
 
     WiFi.softAP(ssid, password);
-    Serial.printf("Webserver auf IP: %s\n", WiFi.softAPIP().toString().c_str());
+    Serial.printf("Webserver IP: %s\n", WiFi.softAPIP().toString().c_str());
 
-    // Route: Index
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send_P(200, "text/html", index_html, processor);
     });
 
-    // Route: Steuerung (Set Pins)
+    // Neue universelle Route: /set?type=solar&idx=0&state=1
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("pin7state") && request->hasParam("pin6state")) {
-            pin7State = (request->arg("pin7state").toInt() == 1);
-            pin6State = (request->arg("pin6state").toInt() == 1);
-            digitalWrite(GPIO_PIN_7, pin7State);
-            digitalWrite(GPIO_PIN_6, pin6State);
-            Serial.printf("Pin %d auf Zustand %d gesetzt\n", GPIO_PIN_7, pin7State);
-            Serial.printf("Pin %d auf Zustand %d gesetzt\n", GPIO_PIN_6, pin6State);
-        } else if (request->hasParam("pin") && request->hasParam("state")) {
-            int pin = request->arg("pin").toInt();
-            int state = (request->arg("state").toInt() == 1);
-            if (pin == 7) { pin7State = state; digitalWrite(7, state); }
-            else if (pin == 6) { pin6State = state; digitalWrite(6, state); }
-            Serial.printf("Pin %d auf Zustand %d gesetzt\n", pin, state);
+        if (request->hasParam("type") && request->hasParam("idx") && request->hasParam("state")) {
+            String type = request->arg("type");
+            int idx = request->arg("idx").toInt();
+            bool state = (request->arg("state").toInt() == 1);
+
+            if (type == "solar" && idx >= 0 && idx < 4) {
+                SolarMosfets[idx] = state;
+                //digitalWrite(SOLAR_PINS[idx], state);
+            } 
+            else if (type == "akku" && idx >= 0 && idx < 4) {
+                BatteryMosfets[idx] = state;
+                //digitalWrite(AKKU_PINS[idx], state);
+            }
+            else if (type == "load" && idx >= 0 && idx < 2) {
+                LoadMosfets[idx] = state;
+                //digitalWrite(LOAD_PINS[idx], state);
+            }
+            Serial.printf("SET %s [%d] -> %d\n", type.c_str(), idx, state);
         }
         request->send(200, "text/plain", "OK");
     });
 
-    // Route: Status JSON für AJAX Updates
+    // JSON Status Update
     server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
-        float currentVoltage = 0.0;
-        SensorData currentSensorData;
-        
-        xQueuePeek(voltageQueue, &currentVoltage, 0);
-        xQueuePeek(sensorQueue, &currentSensorData, 0);
+        float v = 0.0;
+        xQueuePeek(voltageQueue, &v, 0);
 
-        String json = "{\"voltage\":\"" + String(currentVoltage, 3) + 
-                      "\",\"pin7State\":\"" + (pin7State ? "AN" : "AUS") + 
-                      "\",\"pin6State\":\"" + (pin6State ? "AN" : "AUS") + 
-                      "\",\"accelX\":\"" + String(currentSensorData.accelX, 2) + 
-                      "\",\"accelY\":\"" + String(currentSensorData.accelY, 2) + 
-                      "\",\"accelZ\":\"" + String(currentSensorData.accelZ, 2) + 
-                      "\",\"temp\":\"" + String(currentSensorData.temperature, 1) + "\"}";
+        // JSON manuell bauen (ArduinoJson wäre schöner, aber so spart man Speicher)
+        String json = "{";
+        json += "\"voltage\":\"" + String(v, 3) + "\",";
+        
+        // Arrays in JSON einfügen: "solar":[0,1,0,0], ...
+        json += "\"solar\":[";
+        for(int i=0; i<4; i++) json += String(SolarMosfets[i]) + (i<3?",":"");
+        json += "],";
+
+        json += "\"akku\":[";
+        for(int i=0; i<4; i++) json += String(BatteryMosfets[i]) + (i<3?",":"");
+        json += "],";
+
+        json += "\"load\":[";
+        for(int i=0; i<2; i++) json += String(LoadMosfets[i]) + (i<1?",":"");
+        json += "]";
+        json += "}";
+
+
         request->send(200, "application/json", json);
     });
 
     server.begin();
 
     for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(100)); // Geringe CPU-Last im Loop
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 

@@ -30,8 +30,14 @@ const char index_html[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <div class="container">
-    <h2>☀️ Solarhaus Zentrale 🔋</h2>
+    <h2>Solarhaus Zentrale</h2>
     <div class="voltage-display">Spannung: <span id="voltage">%VOLTAGE%</span> V</div>
+    <div style="background: #eef; padding: 10px; border-radius: 5px; margin: 10px 0;">
+        <h4>Messung (INA219)</h4>
+        <div>Spannung: <b><span id="ina_v">0.00</span> V</b></div>
+        <div>Strom: <b><span id="ina_ma">0.0</span> mA</b></div>
+        <div>Leistung: <b><span id="ina_mw">0.0</span> mW</b></div>
+    </div>
 
     <h3>Solarzellen (4x)</h3>
     <div class="grid-container">
@@ -51,8 +57,8 @@ const char index_html[] PROGMEM = R"rawliteral(
 
     <h3>Verbraucher (2x)</h3>
     <div class="grid-container">
-      <button id="load_0" class="btn btn-off" onclick="toggle('load', 0)">💡 Licht</button>
-      <button id="load_1" class="btn btn-off" onclick="toggle('load', 1)">🧺 Waschm.</button>
+      <button id="load_0" class="btn btn-off" onclick="toggle('load', 0)">Licht</button>
+      <button id="load_1" class="btn btn-off" onclick="toggle('load', 1)">Waschm.</button>
     </div>
   </div>
   
@@ -94,7 +100,9 @@ const char index_html[] PROGMEM = R"rawliteral(
           var json = JSON.parse(this.responseText);
           
           document.getElementById('voltage').innerHTML = json.voltage;
-
+          if(document.getElementById('ina_v'))  document.getElementById('ina_v').innerHTML  = json.ina_v;
+          if(document.getElementById('ina_ma')) document.getElementById('ina_ma').innerHTML = json.ina_ma;
+          if(document.getElementById('ina_mw')) document.getElementById('ina_mw').innerHTML = json.ina_mw;
           // Arrays vom Server übernehmen und Buttons aktualisieren
           states.solar = json.solar;
           states.akku = json.akku;

@@ -10,107 +10,170 @@ const char index_html[] PROGMEM = R"rawliteral(
   <title>Solarhaus Steuerung</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: Arial; text-align: center; margin: 0; padding: 20px; background-color: #f4f4f4; }
-    .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    h3 { margin-top: 20px; border-bottom: 2px solid #ddd; padding-bottom: 5px; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; padding: 20px; background-color: #f0f2f5; }
+    .container { max-width: 600px; margin: 0 auto; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    h3 { margin-top: 20px; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px; }
     
-    .grid-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-    
-    .btn { 
-      padding: 15px 20px; font-size: 16px; cursor: pointer; 
-      border: none; border-radius: 5px; color: white; width: 100px;
-      transition: background 0.3s;
+    .control-panel { 
+      display: flex; align-items: center; justify-content: space-between; 
+      background: #fafafa; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #e0e0e0;
     }
-    .btn-on { background-color: #28a745; box-shadow: 0 4px #1e7e34; } /* Grün */
-    .btn-off { background-color: #dc3545; box-shadow: 0 4px #a71d2a; } /* Rot */
-    .btn:active { box-shadow: 0 2px #666; transform: translateY(2px); }
 
-    .voltage-display { font-size: 28px; color: #007bff; font-weight: bold; margin: 10px 0; }
+    .status-icon { font-size: 40px; margin-bottom: 5px; display: block; }
+    .status-container { flex: 1; text-align: center; }
+    .counter-badge { 
+      background: #007bff; color: white; padding: 2px 10px; border-radius: 10px; 
+      font-weight: bold; font-size: 14px; display: inline-block;
+    }
+
+    .btn-group { display: flex; flex-direction: column; gap: 8px; }
+    .btn { 
+      padding: 10px 15px; font-size: 14px; cursor: pointer; border: none; 
+      border-radius: 6px; color: white; transition: all 0.2s; font-weight: bold;
+    }
+    
+    /* Farben für die Steuerungs-Buttons */
+    .btn-plus { background-color: #28a745; }
+    .btn-minus { background-color: #dc3545; }
+    
+    /* NEU: Farblich markierte Sammel-Buttons */
+    .btn-all-on { background-color: #218838; font-size: 11px; }
+    .btn-all-on:hover { background-color: #1e7e34; }
+    
+    .btn-all-off { background-color: #c82333; font-size: 11px; }
+    .btn-all-off:hover { background-color: #bd2130; }
+
+    .btn:active { transform: translateY(2px); opacity: 0.8; }
+    .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+
+    .voltage-display { font-size: 32px; color: #007bff; font-weight: bold; margin: 15px 0; }
+    #mode-display { font-size: 20px; padding: 12px; border-radius: 8px; margin-bottom: 20px; color: white; font-weight: bold; }
+    .mode-day   { background-color: #FFC107; color: #333 !important; }
+    .mode-night { background-color: #2C3E50; }
+
+    .load-container { display: flex; gap: 10px; justify-content: center; }
+    .btn-load { width: 100px; height: 50px; background-color: #dc3545; }
+    .btn-load.on { background-color: #28a745; }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>Solarhaus Zentrale</h2>
-    <div class="voltage-display">Spannung: <span id="voltage">%VOLTAGE%</span> V</div>
-    <div style="background: #eef; padding: 10px; border-radius: 5px; margin: 10px 0;">
-        <h4>Messung (INA219)</h4>
-        <div>Spannung: <b><span id="ina_v">0.00</span> V</b></div>
-        <div>Strom: <b><span id="ina_ma">0.0</span> mA</b></div>
-        <div>Leistung: <b><span id="ina_mw">0.0</span> mW</b></div>
+    
+    <div id="mode-display" class="mode-day">Lade Status...</div>
+    <div class="voltage-display"><span id="voltage">%VOLTAGE%</span> V</div>
+
+    <h3>Solarzellen</h3>
+    <div class="control-panel">
+      <div class="btn-group">
+        <button class="btn btn-plus" onclick="adjustCount('solar', 1)">+</button>
+        <button class="btn btn-minus" onclick="adjustCount('solar', -1)">-</button>
+      </div>
+      
+      <div class="status-container">
+        <span class="status-icon"></span>
+        <div id="solar-counter" class="counter-badge">0 / 4 Aktiv</div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-all-on" onclick="setAll('solar', 1)">Alle AN</button>
+        <button class="btn btn-all-off" onclick="setAll('solar', 0)">Alle AUS</button>
+      </div>
     </div>
 
-    <h3>Solarzellen (4x)</h3>
-    <div class="grid-container">
-      <button id="solar_0" class="btn btn-off" onclick="toggle('solar', 0)">Solar 1</button>
-      <button id="solar_1" class="btn btn-off" onclick="toggle('solar', 1)">Solar 2</button>
-      <button id="solar_2" class="btn btn-off" onclick="toggle('solar', 2)">Solar 3</button>
-      <button id="solar_3" class="btn btn-off" onclick="toggle('solar', 3)">Solar 4</button>
+    <h3>Akkuspeicher</h3>
+    <div class="control-panel">
+      <div class="btn-group">
+        <button class="btn btn-plus" onclick="adjustCount('akku', 1)">+</button>
+        <button class="btn btn-minus" onclick="adjustCount('akku', -1)">-</button>
+      </div>
+
+      <div class="status-container">
+        <span class="status-icon"></span>
+        <div id="akku-counter" class="counter-badge">0 / 4 Aktiv</div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-all-on" onclick="setAll('akku', 1)">Alle AN</button>
+        <button class="btn btn-all-off" onclick="setAll('akku', 0)">Alle AUS</button>
+      </div>
     </div>
 
-    <h3>Akkuspeicher (4x)</h3>
-    <div class="grid-container">
-      <button id="akku_0" class="btn btn-off" onclick="toggle('akku', 0)">Akku 1</button>
-      <button id="akku_1" class="btn btn-off" onclick="toggle('akku', 1)">Akku 2</button>
-      <button id="akku_2" class="btn btn-off" onclick="toggle('akku', 2)">Akku 3</button>
-      <button id="akku_3" class="btn btn-off" onclick="toggle('akku', 3)">Akku 4</button>
+    <h3>Verbraucher</h3>
+    <div class="load-container">
+      <button id="load_0" class="btn btn-load" onclick="toggleLoad(0)">Licht</button>
+      <button id="load_1" class="btn btn-load" onclick="toggleLoad(1)">Waschm.</button>
     </div>
 
-    <h3>Verbraucher (2x)</h3>
-    <div class="grid-container">
-      <button id="load_0" class="btn btn-off" onclick="toggle('load', 0)">Licht</button>
-      <button id="load_1" class="btn btn-off" onclick="toggle('load', 1)">Waschm.</button>
+    <div style="margin-top:20px; font-size: 12px; color: #666; background: #eee; padding: 10px; border-radius: 5px;">
+        INA219: <span id="ina_v">0.0</span>V | <span id="ina_ma">0</span>mA | <span id="ina_mw">0</span>mW
     </div>
   </div>
   
   <script>
-    // Lokaler Speicher für Zustände, um Toggle zu ermöglichen
-    var states = {
-      solar: [0,0,0,0],
-      akku: [0,0,0,0],
-      load: [0,0]
-    };
+    var states = { solar: [0,0,0,0], akku: [0,0,0,0], load: [0,0] };
+    var isDay = true; 
 
-    function toggle(type, idx) {
-      // Zustand umkehren (0->1, 1->0)
-      var newState = states[type][idx] ? 0 : 1;
-      
-      var xhr = new XMLHttpRequest();
-      xhr.open("GET", "/set?type=" + type + "&idx=" + idx + "&state=" + newState, true);
-      xhr.send();
-      
-      // UI sofort aktualisieren für besseres Feedback (wird später durch Server-Status korrigiert)
-      updateButtonColor(type, idx, newState);
-      states[type][idx] = newState;
-    }
-
-    function updateButtonColor(type, idx, state) {
-      var btn = document.getElementById(type + "_" + idx);
-      if(state == 1) {
-        btn.className = "btn btn-on";
-      } else {
-        btn.className = "btn btn-off";
+    function adjustCount(type, change) {
+      if (type == 'solar' && !isDay && change > 0) {
+        alert("Nachtmodus: Solarzellen können nicht zugeschaltet werden.");
+        return;
+      }
+      let currentActive = states[type].filter(s => s === 1).length;
+      let targetActive = Math.max(0, Math.min(4, currentActive + change));
+      for (let i = 0; i < 4; i++) {
+        let newState = (i < targetActive) ? 1 : 0;
+        if (states[type][i] !== newState) sendRequest(type, i, newState);
       }
     }
 
-    // Regelmäßiges Abfragen der Daten
+    function setAll(type, state) {
+      if (type == 'solar' && !isDay && state == 1) return;
+      for (let i = 0; i < 4; i++) sendRequest(type, i, state);
+    }
+
+    function toggleLoad(idx) {
+      let newState = states.load[idx] ? 0 : 1;
+      sendRequest('load', idx, newState);
+    }
+
+    function sendRequest(type, idx, state) {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", "/set?type=" + type + "&idx=" + idx + "&state=" + state, true);
+      xhr.send();
+      states[type][idx] = state;
+      updateUI();
+    }
+
+    function updateUI() {
+      let solarActive = states.solar.filter(s => s === 1).length;
+      let akkuActive = states.akku.filter(s => s === 1).length;
+      document.getElementById('solar-counter').innerHTML = isDay ? (solarActive + " / 4 Aktiv") : "NACHTMODUS";
+      document.getElementById('solar-counter').style.background = isDay ? "#007bff" : "#555";
+      document.getElementById('akku-counter').innerHTML = akkuActive + " / 4 Aktiv";
+      for(let i=0; i<2; i++) {
+        let btn = document.getElementById('load_' + i);
+        btn.className = states.load[i] ? "btn btn-load on" : "btn btn-load";
+      }
+    }
+
     setInterval(function() {
       var xhr = new XMLHttpRequest();
       xhr.onreadystatechange = function() {
         if (this.readyState == 4 && this.status == 200) {
           var json = JSON.parse(this.responseText);
-          
+          isDay = json.isDay;
+          var modeDiv = document.getElementById('mode-display');
+          modeDiv.innerHTML = (isDay ? " TAG" : " NACHT") + " (" + json.timeLeft + "s)";
+          modeDiv.className = isDay ? "mode-day" : "mode-night";
           document.getElementById('voltage').innerHTML = json.voltage;
-          if(document.getElementById('ina_v'))  document.getElementById('ina_v').innerHTML  = json.ina_v;
-          if(document.getElementById('ina_ma')) document.getElementById('ina_ma').innerHTML = json.ina_ma;
-          if(document.getElementById('ina_mw')) document.getElementById('ina_mw').innerHTML = json.ina_mw;
-          // Arrays vom Server übernehmen und Buttons aktualisieren
+          document.getElementById('ina_v').innerHTML = json.ina_v;
+          document.getElementById('ina_ma').innerHTML = json.ina_ma;
+          document.getElementById('ina_mw').innerHTML = json.ina_mw;
           states.solar = json.solar;
           states.akku = json.akku;
           states.load = json.load;
-
-          for(var i=0; i<4; i++) updateButtonColor('solar', i, states.solar[i]);
-          for(var i=0; i<4; i++) updateButtonColor('akku', i, states.akku[i]);
-          for(var i=0; i<2; i++) updateButtonColor('load', i, states.load[i]);
+          updateUI();
         }
       };
       xhr.open("GET", "/status", true);

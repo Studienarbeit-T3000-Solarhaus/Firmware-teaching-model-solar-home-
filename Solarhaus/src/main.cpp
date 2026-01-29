@@ -3,11 +3,12 @@
 #include "Webserver\Webserver.h"
 #include "DisplayLED\LedStrip.hpp"
 #include "Pins.h"
-
+#include "CurrentSensor\INA3221Reader.h"
+#include <Adafruit_INA3221.h>
 
 Adafruit_MCP23X17 mcp;
 SemaphoreHandle_t i2cMutex;
-Adafruit_INA219 ina219;
+Adafruit_INA3221 ina3221;
 
 void setup() {
     Serial.begin(115200);
@@ -18,12 +19,7 @@ void setup() {
     }else{
     Serial.println("MCP23017 erfolgreich initialisiert.");
     }
-    if (!ina219.begin()) {
-        Serial.println("INA219 nicht gefunden!");
-    }else {
-        ina219.setCalibration_16V_400mA();
-        Serial.println("INA219 erfolgreich gestartet.");
-    }
+    
     mcp.pinMode(SOLAR_PIN_1, OUTPUT); // GPA0 als Ausgang
     mcp.pinMode(SOLAR_PIN_2, OUTPUT); // GPA1 als Ausgang
     mcp.pinMode(SOLAR_PIN_3, OUTPUT); // GPA2 als Ausgang
@@ -39,6 +35,7 @@ void setup() {
     delay(2000);
 
     // Starte alle Module
+    startINA3221Task();
     startVoltageTask();
     startWebTask();
     startLedStripTask();

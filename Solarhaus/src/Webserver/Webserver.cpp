@@ -42,6 +42,8 @@ void WebServerTask(void *parameter) {
         request->send_P(200, "text/html", index_html, processor);
     });
 
+    
+
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request) {
         if (request->hasParam("type") && request->hasParam("idx") && request->hasParam("state")) {
             String type = request->arg("type");
@@ -72,14 +74,41 @@ void WebServerTask(void *parameter) {
             }
 
             if (pinToSwitch != -1) {
-                if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-                    mcp.digitalWrite(pinToSwitch, state ? HIGH : LOW);
-                    xSemaphoreGive(i2cMutex);
-                    Serial.printf("SET %s [%d] (Pin %d) -> %d\n", type.c_str(), idx, pinToSwitch, state);
-                } else {
-                    Serial.println("Fehler: I2C Mutex blockiert!");
-                }
+    if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        // Den gewählten Pin physisch schalten
+        Serial.printf("Schalte Pin %d auf %s\n", pinToSwitch, state ? "HIGH" : "LOW");
+        mcp.digitalWrite(pinToSwitch, state ? HIGH : LOW);
+        xSemaphoreGive(i2cMutex);
+        
+        // Log der aktuellen Einzelaktion
+        Serial.printf("SET %s [%d] (Pin %d) -> %d\n", type.c_str(), idx, pinToSwitch, state);
+
+        // Dynamische Status-Ausgabe basierend auf dem Typ
+        Serial.print("Aktueller Status ");
+        Serial.print(type);
+        Serial.print(": [ ");
+
+        if (type == "solar") {
+            for (int i = 0; i < 4; i++) {
+                Serial.printf("S%d: %s%s", i + 1, SolarMosfets[i] ? "AN" : "AUS", (i < 3) ? " | " : "");
             }
+        } 
+        else if (type == "akku") {
+            for (int i = 0; i < 4; i++) {
+                Serial.printf("A%d: %s%s", i + 1, BatteryMosfets[i] ? "AN" : "AUS", (i < 3) ? " | " : "");
+            }
+        } 
+        else if (type == "load") {
+            for (int i = 0; i < 2; i++) {
+                Serial.printf("L%d: %s%s", i + 1, LoadMosfets[i] ? "AN" : "AUS", (i < 1) ? " | " : "");
+            }
+        }
+        
+        Serial.println(" ]");
+    } else {
+        Serial.println("Fehler: I2C Mutex blockiert!");
+    }
+}
         }
         request->send(200, "text/plain", "OK");
     });
@@ -91,14 +120,15 @@ void WebServerTask(void *parameter) {
         float ina_volts = 0.0; float ina_mA = 0.0; float ina_mW = 0.0;
         
         if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-            ina_volts = ina219.getBusVoltage_V();
-            ina_mA    = ina219.getCurrent_mA();
-            ina_mW    = ina219.getPower_mW();
-            xSemaphoreGive(i2cMutex); 
-        }
+        // Kanal 1 des INA3221 auslesen
+        ina_volts = ina3221.getBusVoltage(2);
+        ina_mA    = ina3221.getCurrentAmps(2) * 1000;
+        ina_mW    = ina_volts * (ina_mA); // Einfache Berechnung für die Anzeige
+        xSemaphoreGive(i2cMutex); 
+    }
 
         String json = "{";
-        json += "\"voltage\":\"" + String(v_analog, 3) + "\",";
+        json += "\"voltage\":\"" + String(ina_volts, 3) + "\",";
         json += "\"ina_v\":\""   + String(ina_volts, 2) + "\",";
         json += "\"ina_ma\":\""  + String(ina_mA, 1) + "\",";
         json += "\"ina_mw\":\""  + String(ina_mW, 1) + "\",";

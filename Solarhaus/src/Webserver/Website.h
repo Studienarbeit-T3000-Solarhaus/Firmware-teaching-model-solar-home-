@@ -106,7 +106,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     </div>
 
     <div style="margin-top:20px; font-size: 12px; color: #666; background: #eee; padding: 10px; border-radius: 5px;">
-        INA219: <span id="ina_v">0.0</span>V | <span id="ina_ma">0</span>mA | <span id="ina_mw">0</span>mW
+        INA3221: <span id="ina_v">0.0</span>V | <span id="ina_ma">0</span>mA | <span id="ina_mw">0</span>mW
     </div>
   </div>
   
@@ -115,22 +115,32 @@ const char index_html[] PROGMEM = R"rawliteral(
     var isDay = true; 
 
     function adjustCount(type, change) {
-      if (type == 'solar' && !isDay && change > 0) {
-        alert("Nachtmodus: Solarzellen können nicht zugeschaltet werden.");
-        return;
-      }
-      let currentActive = states[type].filter(s => s === 1).length;
-      let targetActive = Math.max(0, Math.min(4, currentActive + change));
-      for (let i = 0; i < 4; i++) {
-        let newState = (i < targetActive) ? 1 : 0;
-        if (states[type][i] !== newState) sendRequest(type, i, newState);
-      }
+  if (type == 'solar' && !isDay && change > 0) {
+    alert("Nachtmodus: Solarzellen können nicht zugeschaltet werden.");
+    return;
+  }
+  let currentActive = states[type].filter(s => s === 1).length;
+  let targetActive = Math.max(0, Math.min(4, currentActive + change));
+  
+  for (let i = 0; i < 4; i++) {
+    let newState = (i < targetActive) ? 1 : 0;
+    if (states[type][i] !== newState) {
+      states[type][i] = newState; // Status lokal setzen
+      sendRequest(type, i, newState);
     }
+  }
+  updateUI();
+}
 
     function setAll(type, state) {
-      if (type == 'solar' && !isDay && state == 1) return;
-      for (let i = 0; i < 4; i++) sendRequest(type, i, state);
-    }
+  if (type == 'solar' && !isDay && state == 1) return;
+  
+  for (let i = 0; i < 4; i++) {
+    states[type][i] = state; // WICHTIG: Lokalen Status sofort setzen
+    sendRequest(type, i, state);
+  }
+  updateUI(); // UI sofort aktualisieren
+}
 
     function toggleLoad(idx) {
       let newState = states.load[idx] ? 0 : 1;

@@ -1,6 +1,6 @@
 #include "LedStrip.hpp"
 #include "WebServer.h"
-#include "VoltageReader/VoltageReader.h"
+#include "CurrentSensor/INA3221Reader.h" 
 
 // Definition der globalen Variablen für die Hardware-Zustände
 // Diese kommen aus der Webserver.cpp
@@ -57,16 +57,19 @@ void LedStripTask(void *parameter) {
   float currentVoltageV = 0.0; // Spannung in Volt
 
   while(1) {
-    // 1. SPANNUNG LESEN & SOLAR GESCHWINDIGKEIT BERECHNEN
-    // Wir nutzen peek, um den Wert nicht aus der Queue zu entfernen (falls andere Tasks ihn brauchen)
-    if(xQueuePeek(voltageQueue, &currentVoltageV, 0) == pdTRUE) {
-        // Umrechnung für Animation: 0V bis 3V -> 1000ms (langsam) bis 50ms (sehr schnell)
-        // Je höher die Spannung (mehr Sonne), desto kleiner die ms (schneller)
-        float mV = currentVoltageV * 1000.0;
-        solarSpeedMs = map(constrain(mV, 0, 3000), 0, 3000, 1000, 50);
-    } else {
-        solarSpeedMs = 1000; // Fallback
-    }
+    // 1. SPANNUNG VOM INA3221 (Kanal 1) LESEN
+if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+    // Kanal 1 des INA3221 lesen (Index 1)
+    currentVoltageV = ina3221.getBusVoltage(1); 
+    xSemaphoreGive(i2cMutex);
+    
+    // Umrechnung für Animation: 0V bis 3V -> 1000ms bis 50ms
+    float mV = currentVoltageV * 1000.0;
+    solarSpeedMs = map(constrain(mV, 0, 3000), 0, 3000, 1000, 50);
+} else {
+    // Falls der Bus blockiert ist, behalten wir den alten Wert oder nutzen Fallback
+    if (solarSpeedMs == 0) solarSpeedMs = 1000; 
+}
 
     // 2. ENERGIEBILANZ BERECHNEN (SIMULATION)
     float totalProduction = 0.0;

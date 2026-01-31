@@ -32,11 +32,9 @@ const char index_html[] PROGMEM = R"rawliteral(
       border-radius: 6px; color: white; transition: all 0.2s; font-weight: bold;
     }
     
-    /* Farben für die Steuerungs-Buttons */
     .btn-plus { background-color: #28a745; }
     .btn-minus { background-color: #dc3545; }
     
-    /* NEU: Farblich markierte Sammel-Buttons */
     .btn-all-on { background-color: #218838; font-size: 11px; }
     .btn-all-on:hover { background-color: #1e7e34; }
     
@@ -47,9 +45,6 @@ const char index_html[] PROGMEM = R"rawliteral(
     .btn:disabled { background-color: #ccc; cursor: not-allowed; }
 
     .voltage-display { font-size: 32px; color: #007bff; font-weight: bold; margin: 15px 0; }
-    #mode-display { font-size: 20px; padding: 12px; border-radius: 8px; margin-bottom: 20px; color: white; font-weight: bold; }
-    .mode-day   { background-color: #FFC107; color: #333 !important; }
-    .mode-night { background-color: #2C3E50; }
 
     .load-container { display: flex; gap: 10px; justify-content: center; }
     .btn-load { width: 100px; height: 50px; background-color: #dc3545; }
@@ -60,7 +55,6 @@ const char index_html[] PROGMEM = R"rawliteral(
   <div class="container">
     <h2>Solarhaus Zentrale</h2>
     
-    <div id="mode-display" class="mode-day">Lade Status...</div>
     <div class="voltage-display"><span id="voltage">%VOLTAGE%</span> V</div>
 
     <h3>Solarzellen</h3>
@@ -112,35 +106,28 @@ const char index_html[] PROGMEM = R"rawliteral(
   
   <script>
     var states = { solar: [0,0,0,0], akku: [0,0,0,0], load: [0,0] };
-    var isDay = true; 
 
     function adjustCount(type, change) {
-  if (type == 'solar' && !isDay && change > 0) {
-    alert("Nachtmodus: Solarzellen können nicht zugeschaltet werden.");
-    return;
-  }
-  let currentActive = states[type].filter(s => s === 1).length;
-  let targetActive = Math.max(0, Math.min(4, currentActive + change));
-  
-  for (let i = 0; i < 4; i++) {
-    let newState = (i < targetActive) ? 1 : 0;
-    if (states[type][i] !== newState) {
-      states[type][i] = newState; // Status lokal setzen
-      sendRequest(type, i, newState);
+      let currentActive = states[type].filter(s => s === 1).length;
+      let targetActive = Math.max(0, Math.min(4, currentActive + change));
+      
+      for (let i = 0; i < 4; i++) {
+        let newState = (i < targetActive) ? 1 : 0;
+        if (states[type][i] !== newState) {
+          states[type][i] = newState; 
+          sendRequest(type, i, newState);
+        }
+      }
+      updateUI();
     }
-  }
-  updateUI();
-}
 
     function setAll(type, state) {
-  if (type == 'solar' && !isDay && state == 1) return;
-  
-  for (let i = 0; i < 4; i++) {
-    states[type][i] = state; // WICHTIG: Lokalen Status sofort setzen
-    sendRequest(type, i, state);
-  }
-  updateUI(); // UI sofort aktualisieren
-}
+      for (let i = 0; i < 4; i++) {
+        states[type][i] = state; 
+        sendRequest(type, i, state);
+      }
+      updateUI(); 
+    }
 
     function toggleLoad(idx) {
       let newState = states.load[idx] ? 0 : 1;
@@ -158,9 +145,10 @@ const char index_html[] PROGMEM = R"rawliteral(
     function updateUI() {
       let solarActive = states.solar.filter(s => s === 1).length;
       let akkuActive = states.akku.filter(s => s === 1).length;
-      document.getElementById('solar-counter').innerHTML = isDay ? (solarActive + " / 4 Aktiv") : "NACHTMODUS";
-      document.getElementById('solar-counter').style.background = isDay ? "#007bff" : "#555";
+      
+      document.getElementById('solar-counter').innerHTML = solarActive + " / 4 Aktiv";
       document.getElementById('akku-counter').innerHTML = akkuActive + " / 4 Aktiv";
+      
       for(let i=0; i<2; i++) {
         let btn = document.getElementById('load_' + i);
         btn.className = states.load[i] ? "btn btn-load on" : "btn btn-load";
@@ -172,14 +160,12 @@ const char index_html[] PROGMEM = R"rawliteral(
       xhr.onreadystatechange = function() {
         if (this.readyState == 4 && this.status == 200) {
           var json = JSON.parse(this.responseText);
-          isDay = json.isDay;
-          var modeDiv = document.getElementById('mode-display');
-          modeDiv.innerHTML = (isDay ? " TAG" : " NACHT") + " (" + json.timeLeft + "s)";
-          modeDiv.className = isDay ? "mode-day" : "mode-night";
+          
           document.getElementById('voltage').innerHTML = json.voltage;
           document.getElementById('ina_v').innerHTML = json.ina_v;
           document.getElementById('ina_ma').innerHTML = json.ina_ma;
           document.getElementById('ina_mw').innerHTML = json.ina_mw;
+          
           states.solar = json.solar;
           states.akku = json.akku;
           states.load = json.load;
@@ -188,7 +174,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       };
       xhr.open("GET", "/status", true);
       xhr.send();
-    }, 50);
+    }, 100);
   </script>
 </body>
 </html>

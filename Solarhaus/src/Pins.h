@@ -13,6 +13,16 @@
 #define LOAD_PIN_1 8
 #define LOAD_PIN_2 9
 
+// Definition of the pins for Neopixel LED strip
+#define NEOPIXEL_PIN 4
+
+
+// Definition of the ADC pin for voltage reading
+#define VOLTAGE_ADC_PIN 2
+
+// I2C Pins for ESP32-C3
+#define I2C_SDA_PIN D4
+#define I2C_SCL_PIN D5
 
 
 

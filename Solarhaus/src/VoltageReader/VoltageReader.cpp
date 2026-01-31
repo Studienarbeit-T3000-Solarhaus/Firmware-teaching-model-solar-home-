@@ -1,7 +1,6 @@
 #include "VoltageReader.h"
 
 QueueHandle_t voltageQueue; 
-const int ANALOG_PIN = 2;
 const int NUM_READINGS = 100;
 
 void ReadVoltageTask(void *parameter) {
@@ -10,7 +9,7 @@ void ReadVoltageTask(void *parameter) {
     for (;;) {
         long sumOfMilliVolts = 0;
         for (int i = 0; i < NUM_READINGS; i++) {
-            sumOfMilliVolts += analogReadMilliVolts(ANALOG_PIN);
+            sumOfMilliVolts += analogReadMilliVolts(VOLTAGE_ADC_PIN);
         }
         float averageVoltage = (sumOfMilliVolts / NUM_READINGS) / 1000.0;
         xQueueOverwrite(voltageQueue, &averageVoltage);

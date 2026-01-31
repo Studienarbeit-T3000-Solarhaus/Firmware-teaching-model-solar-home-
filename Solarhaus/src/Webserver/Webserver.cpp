@@ -1,9 +1,5 @@
 #include "Webserver.h"
-#include "Website.h"
-#include <WiFi.h>
-#include <ESPAsyncWebServer.h>
-#include "VoltageReader\VoltageReader.h"
-#include "Pins.h"
+
 
 AsyncWebServer server(80);
 const char *ssid = "ESP32-C3_Sensor";

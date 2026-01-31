@@ -3,10 +3,11 @@
 
 #include <Adafruit_NeoPixel.h>
 #include "LedSegment.hpp"
+#include "Pins.h"
+#include "CurrentSensor/INA3221Reader.h" 
 
 
 
-#define NEOPIXELPIN    4
 #define NUMLEDS 144
 
 void startLedStripTask();

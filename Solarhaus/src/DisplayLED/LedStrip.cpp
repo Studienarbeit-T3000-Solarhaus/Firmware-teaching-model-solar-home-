@@ -1,6 +1,5 @@
 #include "LedStrip.hpp"
-#include "WebServer.h"
-#include "CurrentSensor/INA3221Reader.h" 
+
 
 // Definition der globalen Variablen für die Hardware-Zustände
 // Diese kommen aus der Webserver.cpp
@@ -9,7 +8,7 @@ extern bool BatteryMosfets[4];
 extern bool LoadMosfets[2];
 
 // Initialisierung des LED-Streifens
-Adafruit_NeoPixel Mainstrip(NUMLEDS, NEOPIXELPIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel Mainstrip(NUMLEDS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 // --- KONSTANTEN FÜR DIE SIMULATION ---
 // Wir weisen den Geräten virtuelle Verbrauchswerte zu, 

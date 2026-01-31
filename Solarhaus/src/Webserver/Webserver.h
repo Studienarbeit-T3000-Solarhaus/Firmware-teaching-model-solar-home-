@@ -4,6 +4,11 @@
 #include <Arduino.h>
 #include <Adafruit_MCP23X17.h>
 #include "CurrentSensor/INA3221Reader.h"
+#include "Website.h"
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h>
+#include "VoltageReader/VoltageReader.h"
+#include "Pins.h"
 
 
 extern Adafruit_MCP23X17 mcp;

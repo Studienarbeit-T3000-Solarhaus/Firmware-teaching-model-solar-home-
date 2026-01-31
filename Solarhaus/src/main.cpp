@@ -12,7 +12,7 @@ Adafruit_INA3221 ina3221;
 
 void setup() {
     Serial.begin(115200);
-    Wire.begin(D4, D5, 1700000); // SDA, SCL Pins und 1.7MHz Geschwindigkeit für MCP23017
+    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, 1700000); // SDA, SCL Pins und 1.7MHz Geschwindigkeit für MCP23017
     if (!mcp.begin_I2C(0x20)) {
         Serial.println("MCP23017 nicht gefunden! Checke die Verkabelung.");
         while (1);

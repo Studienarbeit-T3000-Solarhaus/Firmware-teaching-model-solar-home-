@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "Pins.h"
 
 extern QueueHandle_t voltageQueue; // Global zugänglich machen
 void startVoltageTask();

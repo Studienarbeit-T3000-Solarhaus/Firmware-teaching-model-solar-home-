@@ -1,12 +1,11 @@
 #include "tasks.hpp"
 #include "shared_data.hpp"
 #include "Config.hpp"
+#include "DebugConfig.hpp"
 #include "Webpage.hpp"
 #include "PinDefinitions.hpp"
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
-//#include <ArduinoJson.h> // Ensure you add ArduinoJson to lib_deps if not present, or construct JSON manually
-
 
 
 AsyncWebServer server(80);
@@ -41,6 +40,8 @@ void setIncremental(int startPin, int maxCount, int targetCount) {
         xSemaphoreGive(i2cMutex);
     }
 }
+
+SystemState localSystemState;
 
 void Task_Webserver(void* pvParameters) {
     // 1. Setup WiFi (AP Mode for standalone demo, or STA to connect to router)
@@ -88,15 +89,21 @@ void Task_Webserver(void* pvParameters) {
             xSemaphoreGive(i2cMutex);
         }
 
-        json += "\"bus_voltage\":" + String(v1, 3) + ",";
+        if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
+            // Copy latest system state
+            localSystemState = sysState;
+            xSemaphoreGive(dataMutex);
+        }
+
+        json += "\"bus_voltage\":" + String(localSystemState.busVoltage[0], 3) + ",";
         json += "\"solar_count\":" + String(solarCount) + ",";
         json += "\"battery_count\":" + String(batCount) + ",";
         json += "\"light_on\":" + String(lightOn ? "true" : "false") + ",";
         json += "\"machine_on\":" + String(machineOn ? "true" : "false") + ",";
         
-        json += "\"ch1_v\":" + String(v1, 2) + ", \"ch1_ma\":" + String(i1, 0) + ",";
-        json += "\"ch2_v\":" + String(v2, 2) + ", \"ch2_ma\":" + String(i2, 0) + ",";
-        json += "\"ch3_v\":" + String(v3, 2) + ", \"ch3_ma\":" + String(i3, 0);
+        json += "\"ch1_v\":" + String(localSystemState.busVoltage[0], 2) + ", \"ch1_ma\":" + String(localSystemState.current_mA[0], 0) + ",";
+        json += "\"ch2_v\":" + String(localSystemState.busVoltage[1], 2) + ", \"ch2_ma\":" + String(localSystemState.current_mA[1], 0) + ",";
+        json += "\"ch3_v\":" + String(localSystemState.busVoltage[2], 2) + ", \"ch3_ma\":" + String(localSystemState.current_mA[2], 0);
         
         json += "}";
         request->send(200, "application/json", json);

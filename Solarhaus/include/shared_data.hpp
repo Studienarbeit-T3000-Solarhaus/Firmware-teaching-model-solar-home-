@@ -6,21 +6,43 @@
 
 // Mutexes
 extern SemaphoreHandle_t i2cMutex;
+extern SemaphoreHandle_t dataMutex;
 
 // Task Priorities
 #define PRIORITY_STARTUP_TASK 5
 #define PRIORITY_WEBSERVER_TASK 4
+#define PRIORITY_POWER_SENSING_TASK 3
 
 // Task stack sizes
 #define STACK_SIZE_STARTUP_TASK 2048
 #define STACK_SIZE_WEBSERVER_TASK 4096
+#define STACK_SIZE_POWER_SENSING_TASK 2048
 
 // Task frequencies (in Hz)
+#define FREQUENCY_POWER_SENSING_TASK 100
 
 // Task periods (in FreeRTOS ticks)
+#define PERIOD_POWER_SENSING_TASK pdMS_TO_TICKS(1000 / FREQUENCY_POWER_SENSING_TASK)
 
+
+// Data Structures
+struct SystemState {
+    // INA3221 Data
+    float busVoltage[3]; 
+    float current_mA[3];
+    float power_mW[3];
+    
+    // MCP23017 Status
+    int solarActiveCount;
+    int batteryActiveCount;
+    bool constantLoadOn;
+    bool nightLoadOn;
+    bool heavyLoadOn;
+};
 
 // Global shared data 
 extern Adafruit_INA3221 CurrentSensor;
 extern Adafruit_MCP23X17 GPIOExpander;
 extern Adafruit_NeoPixel pixels;
+extern SystemState sysState;
+

@@ -3,8 +3,12 @@
 
 // Mutexes
 SemaphoreHandle_t i2cMutex = NULL;
+SemaphoreHandle_t dataMutex = NULL;
+
+
 
 
 // Task Handles
 TaskHandle_t TaskHandle_Startup = NULL;
 TaskHandle_t TaskHandle_Webserver = NULL;
+TaskHandle_t TaskHandle_Power_Sensing = NULL;

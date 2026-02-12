@@ -11,10 +11,12 @@
 Adafruit_INA3221 CurrentSensor;
 Adafruit_MCP23X17 GPIOExpander; 
 Adafruit_NeoPixel pixels(NUM_NEOPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+SystemState sysState; // Holds the latest sensor readings
 
 void setup() {
     // init mutexes
     i2cMutex = xSemaphoreCreateMutex();
+    dataMutex = xSemaphoreCreateMutex();
     // Create Startup task
     xTaskCreate(Task_Startup, "Startup Task", STACK_SIZE_STARTUP_TASK, NULL, PRIORITY_STARTUP_TASK, &TaskHandle_Startup);
 

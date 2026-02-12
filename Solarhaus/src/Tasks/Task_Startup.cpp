@@ -99,10 +99,11 @@ void Task_Startup(void* pvParameters) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     #endif
-    
+
     xTaskCreate(Task_Power_Sensing, "Power Sensing Task", STACK_SIZE_POWER_SENSING_TASK, NULL, PRIORITY_POWER_SENSING_TASK, &TaskHandle_Power_Sensing);
+    xTaskCreate(Task_Control_GPIO, "GPIO Control Task", STACK_SIZE_CONTROL_GPIO_TASK, NULL, PRIORITY_CONTROL_GPIO_TASK, &TaskHandle_Control_GPIO);
     xTaskCreate(Task_Webserver, "Webserver Task", STACK_SIZE_WEBSERVER_TASK, NULL, PRIORITY_WEBSERVER_TASK, &TaskHandle_Webserver);
-  
+    
     #ifdef DEBUG
     Serial.println("Startup Task done");
     #endif

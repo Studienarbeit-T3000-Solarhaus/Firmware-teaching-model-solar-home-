@@ -12,3 +12,4 @@ SemaphoreHandle_t dataMutex = NULL;
 TaskHandle_t TaskHandle_Startup = NULL;
 TaskHandle_t TaskHandle_Webserver = NULL;
 TaskHandle_t TaskHandle_Power_Sensing = NULL;
+TaskHandle_t TaskHandle_Control_GPIO = NULL;

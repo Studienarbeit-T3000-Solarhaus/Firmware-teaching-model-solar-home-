@@ -119,9 +119,9 @@ const char index_html[] PROGMEM = R"rawliteral(
 
                     // Update Footer
                     let html = "<strong>INA3221 Channels:</strong><br>";
-                    html += `CH1 (Solar): ${data.ch1_v.toFixed(2)}V | ${data.ch1_ma.toFixed(0)}mA<br>`;
-                    html += `CH2 (Bat):   ${data.ch2_v.toFixed(2)}V | ${data.ch2_ma.toFixed(0)}mA<br>`;
-                    html += `CH3 (Load):  ${data.ch3_v.toFixed(2)}V | ${data.ch3_ma.toFixed(0)}mA`;
+                    html += `CH1 (Solar): ${data.ch1_v.toFixed(2)}V | ${data.ch1_ma.toFixed(0)}mA | ${data.ch1_mw.toFixed(0)}mW<br>`;
+                    html += `CH2 (Bat):   ${data.ch2_v.toFixed(2)}V | ${data.ch2_ma.toFixed(0)}mA | ${data.ch2_mw.toFixed(0)}mW<br>`;
+                    html += `CH3 (Load):  ${data.ch3_v.toFixed(2)}V | ${data.ch3_ma.toFixed(0)}mA | ${data.ch3_mw.toFixed(0)}mW<br>`;
                     document.getElementById('inaData').innerHTML = html;
                 });
         }
@@ -135,7 +135,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
 
         // Refresh every 2 seconds
-        setInterval(updateUI, 2000);
+        setInterval(updateUI, 100);
         window.onload = updateUI;
     </script>
 </body>

@@ -100,34 +100,37 @@ void Task_Webserver(void* pvParameters) {
         json += "\"battery_count\":" + String(batCount) + ",";
         json += "\"light_on\":" + String(lightOn ? "true" : "false") + ",";
         json += "\"machine_on\":" + String(machineOn ? "true" : "false") + ",";
-        
-        json += "\"ch1_v\":" + String(localSystemState.busVoltage[0], 2) + ", \"ch1_ma\":" + String(localSystemState.current_mA[0], 0) + ",";
-        json += "\"ch2_v\":" + String(localSystemState.busVoltage[1], 2) + ", \"ch2_ma\":" + String(localSystemState.current_mA[1], 0) + ",";
-        json += "\"ch3_v\":" + String(localSystemState.busVoltage[2], 2) + ", \"ch3_ma\":" + String(localSystemState.current_mA[2], 0);
+        json += "\"ch1_v\":" + String(localSystemState.busVoltage[0], 2) + ", \"ch1_ma\":" + String(localSystemState.current_mA[0], 0) + ", \"ch1_mw\":" + String(localSystemState.power_mW[0], 0) + ",";
+        json += "\"ch2_v\":" + String(localSystemState.busVoltage[1], 2) + ", \"ch2_ma\":" + String(localSystemState.current_mA[1], 0) + ", \"ch2_mw\":" + String(localSystemState.power_mW[1], 0) + ",";
+        json += "\"ch3_v\":" + String(localSystemState.busVoltage[2], 2) + ", \"ch3_ma\":" + String(localSystemState.current_mA[2], 0) + ", \"ch3_mw\":" + String(localSystemState.power_mW[2], 0);
         
         json += "}";
         request->send(200, "application/json", json);
     });
 
-    // Control API for Arrays (Solar/Battery)
     server.on("/api/control", HTTP_GET, [](AsyncWebServerRequest *request){
         if (request->hasParam("type") && request->hasParam("action")) {
             String type = request->getParam("type")->value();
             String action = request->getParam("action")->value();
             
-            int startPin = (type == "solar") ? SOLAR_CELL_1 : CAPACITOR_1;
-            int currentCount = countActive(startPin, 4);
-            int newCount = currentCount;
+            
+            if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
+                int* countPtr = (type == "solar") ? &sysState.solarActiveCount : &sysState.batteryActiveCount;
+                int newCount = *countPtr;
 
-            if (action == "inc") newCount++;
-            else if (action == "dec") newCount--;
-            else if (action == "all_on") newCount = 4;
-            else if (action == "all_off") newCount = 0;
+                if (action == "inc") newCount++;
+                else if (action == "dec") newCount--;
+                else if (action == "all_on") newCount = 4;
+                else if (action == "all_off") newCount = 0;
 
-            if (newCount > 4) newCount = 4;
-            if (newCount < 0) newCount = 0;
+                
+                if (newCount > 4) newCount = 4;
+                if (newCount < 0) newCount = 0;
 
-            setIncremental(startPin, 4, newCount);
+                *countPtr = newCount;
+                
+                xSemaphoreGive(dataMutex);
+            }
         }
         request->send(200, "text/plain", "OK");
     });
@@ -136,12 +139,14 @@ void Task_Webserver(void* pvParameters) {
     server.on("/api/toggle", HTTP_GET, [](AsyncWebServerRequest *request){
         if (request->hasParam("load")) {
             String load = request->getParam("load")->value();
-            int pin = (load == "light") ? CONSTANT_LOAD : HEAVY_LOAD;
             
-            if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(200))) {
-                bool state = GPIOExpander.digitalRead(pin);
-                GPIOExpander.digitalWrite(pin, !state);
-                xSemaphoreGive(i2cMutex);
+            if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
+                if (load == "light") {
+                    sysState.constantLoadOn = !sysState.constantLoadOn;
+                } else if (load == "machine") {
+                    sysState.heavyLoadOn = !sysState.heavyLoadOn;
+                }
+                xSemaphoreGive(dataMutex);
             }
         }
         request->send(200, "text/plain", "OK");

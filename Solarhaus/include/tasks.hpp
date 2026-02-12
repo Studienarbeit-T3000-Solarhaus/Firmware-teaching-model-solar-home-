@@ -5,11 +5,13 @@
 void Task_Startup(void* pvParameters);
 void Task_Webserver(void* pvParameters);
 void Task_Power_Sensing(void* pvParameters);
+void Task_Control_GPIO(void* pvParameters);
 
 // Task Handles
 extern TaskHandle_t TaskHandle_Startup;
 extern TaskHandle_t TaskHandle_Webserver;
 extern TaskHandle_t TaskHandle_Power_Sensing;
+extern TaskHandle_t TaskHandle_Control_GPIO; 
 
 // Function prototypes 
 void printGPIOExpanderStatus();

@@ -12,6 +12,7 @@
 
 
 
+
 void Task_Startup(void* pvParameters) {
     #ifdef DEBUG
     Serial.begin(115200);
@@ -98,6 +99,8 @@ void Task_Startup(void* pvParameters) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     #endif
+
+    xTaskCreate(Task_Webserver, "Webserver Task", STACK_SIZE_WEBSERVER_TASK, NULL, PRIORITY_WEBSERVER_TASK, &TaskHandle_Webserver);
 
     #ifdef DEBUG
     Serial.println("Startup Task done");

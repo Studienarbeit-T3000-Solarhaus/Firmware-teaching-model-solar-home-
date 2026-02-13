@@ -5,7 +5,11 @@
 void Task_Power_Sensing(void* pvParameters) {
     
     TickType_t xLastWakeTime = xTaskGetTickCount();
-
+    
+    // Set Shunt Resistance to 100mOhm for all channels 
+    CurrentSensor.setShuntResistance(0, 0.1);
+    CurrentSensor.setShuntResistance(1, 0.1);
+    CurrentSensor.setShuntResistance(2, 0.1);
     while (1) {
         float v_temp[3] = {0.0f};
         float i_temp[3] = {0.0f};

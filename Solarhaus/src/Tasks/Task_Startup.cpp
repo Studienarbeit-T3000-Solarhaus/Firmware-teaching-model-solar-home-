@@ -82,20 +82,20 @@ void Task_Startup(void* pvParameters) {
       GPIOExpander.digitalWrite(GPIOExpanderPins[i], LOW);
     }
 
-    // Initialize Neopixels
-    pixels.begin(); 
-    pixels.clear(); 
-    pixels.show();
+    // Initialize NeoNeopixels
+    Neopixels.begin(); 
+    Neopixels.clear(); 
+    Neopixels.show();
     #ifdef DEBUG
-    Serial.println("Neopixels initialized");
+    Serial.println("NeoNeopixels initialized");
     for(int i=0; i<5; i++) {
         for(int i=0; i<NUM_NEOPIXELS; i++) {
-            pixels.setPixelColor(i, pixels.Color(0, 150, 0));
+            Neopixels.setPixelColor(i, Neopixels.Color(0, 150, 0));
         }
-        pixels.show();
+        Neopixels.show();
         vTaskDelay(pdMS_TO_TICKS(100));
-        pixels.clear();
-        pixels.show();
+        Neopixels.clear();
+        Neopixels.show();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     #endif
@@ -104,8 +104,9 @@ void Task_Startup(void* pvParameters) {
     xTaskCreate(Task_Control_GPIO, "GPIO Control Task", STACK_SIZE_CONTROL_GPIO_TASK, NULL, PRIORITY_CONTROL_GPIO_TASK, &TaskHandle_Control_GPIO);
     xTaskCreate(Task_Neopixel, "Neopixel Task", STACK_SIZE_NEOPIXEL_TASK, NULL, PRIORITY_NEOPIXEL_TASK, &TaskHandle_Neopixel);
     xTaskCreate(Task_Webserver, "Webserver Task", STACK_SIZE_WEBSERVER_TASK, NULL, PRIORITY_WEBSERVER_TASK, &TaskHandle_Webserver);
-    
+
     #ifdef DEBUG
+    xTaskCreate(Task_Debug, "Debug Task", STACK_SIZE_DEBUG_TASK, NULL, PRIORITY_DEBUG_TASK, &TaskHandle_Debug);
     Serial.println("Startup Task done");
     #endif
 

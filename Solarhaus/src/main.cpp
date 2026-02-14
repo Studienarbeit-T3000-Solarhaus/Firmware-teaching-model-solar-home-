@@ -10,7 +10,7 @@
 
 Adafruit_INA3221 CurrentSensor;
 Adafruit_MCP23X17 GPIOExpander; 
-Adafruit_NeoPixel pixels(NUM_NEOPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel Neopixels(NUM_NEOPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 SystemState sysState; // Holds the latest sensor readings
 
 void setup() {

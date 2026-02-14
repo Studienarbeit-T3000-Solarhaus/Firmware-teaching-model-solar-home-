@@ -14,13 +14,15 @@ extern SemaphoreHandle_t dataMutex;
 #define PRIORITY_POWER_SENSING_TASK 3
 #define PRIORITY_CONTROL_GPIO_TASK 3
 #define PRIORITY_NEOPIXEL_TASK 2
+#define PRIORITY_DEBUG_TASK 1
 
 // Task stack sizes
 #define STACK_SIZE_STARTUP_TASK 2048
 #define STACK_SIZE_WEBSERVER_TASK 4096
 #define STACK_SIZE_POWER_SENSING_TASK 2048
 #define STACK_SIZE_CONTROL_GPIO_TASK 2048
-#define STACK_SIZE_NEOPIXEL_TASK 1024
+#define STACK_SIZE_NEOPIXEL_TASK 4096
+#define STACK_SIZE_DEBUG_TASK 2048
 
 // Task frequencies (in Hz)
 #define FREQUENCY_POWER_SENSING_TASK 100
@@ -51,6 +53,6 @@ struct SystemState {
 // Global shared data 
 extern Adafruit_INA3221 CurrentSensor;
 extern Adafruit_MCP23X17 GPIOExpander;
-extern Adafruit_NeoPixel pixels;
+extern Adafruit_NeoPixel Neopixels;
 extern SystemState sysState;
 

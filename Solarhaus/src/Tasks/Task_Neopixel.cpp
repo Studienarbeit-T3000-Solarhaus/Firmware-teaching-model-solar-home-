@@ -41,26 +41,69 @@ void Task_Neopixel(void* pvParameters) {
         }
        
         // =========================================================
-        // TEIL A: SOLAR (Animation basierend auf Stromstärke Ch0)
+        // TEIL A: SOLAR
         // =========================================================
         float currentSolar = currentState.current_mA[0];
+        int activeSolarCount = currentState.solarActiveCount;
         int solarAnimSpeed = 0; 
 
+        // 1. Basis-Geschwindigkeit berechnen
         if (currentSolar >= 1.0) {
             float clampedCurrent = constrain(currentSolar, 1.0, 40.0);
             solarAnimSpeed = map((long)clampedCurrent, 1, 40, 200, 30);
         }
 
-        for(int i=0; i<4; i++) solarModules[i]->setFlow(solarAnimSpeed, false);
-        allSolarModules->setFlow(solarAnimSpeed, false);
+        // 2. Einzelne Module animieren (nur wenn aktiv)
+        for(int i=0; i<4; i++) {
+            if (i < activeSolarCount) {
+                solarModules[i]->setFlow(solarAnimSpeed, false);
+            } else {
+                solarModules[i]->setFlow(0, false);
+                solarModules[i]->clear();
+            }
+        }
+
+        // 3. Hauptleitung (allSolarModules) beschleunigen je nach Anzahl
+        if (activeSolarCount > 0 && solarAnimSpeed > 0) {
+            // Zeit durch Anzahl teilen = Schneller
+            // Beispiel: 200ms Basis / 4 Module = 50ms (sehr schnell)
+            int combinedSpeed = solarAnimSpeed / activeSolarCount;
+            // Sicherheitshalber nicht schneller als 20ms, damit man es noch sieht
+            if (combinedSpeed < 20) combinedSpeed = 20; 
+            allSolarModules->setFlow(combinedSpeed, false);
+        } else {
+            allSolarModules->setFlow(0, false);
+            allSolarModules->clear();
+        }
 
 
         // =========================================================
-        // TEIL B: KONDENSATOREN (Einzel-Füllstandsanzeige)
+        // TEIL B: KONDENSATOREN
         // =========================================================
         
-        // 1. Berechnung des Füllstands & Farbe (Gilt für alle aktiven Kondensatoren)
-        float batVoltage = currentState.busVoltage[0]; // Channel 1
+        // --- B1. Hauptleitung (allCapacitors) Animation ---
+        float currentBat = abs(currentState.current_mA[0]); // Betrag des Stroms (Laden/Entladen)
+        int activeBatCount = currentState.batteryActiveCount;
+        int batAnimSpeed = 0;
+
+        // Basis-Geschwindigkeit für Batterie-Strom
+        if (currentBat >= 1.0) {
+            float clampedBat = constrain(currentBat, 1.0, 100.0); // Skalierung anpassen falls nötig
+            batAnimSpeed = map((long)clampedBat, 1, 100, 200, 30);
+        }
+
+        // Beschleunigung je nach Anzahl aktiver Kondensatoren
+        if (activeBatCount > 0 && batAnimSpeed > 0) {
+            int combinedBatSpeed = batAnimSpeed / activeBatCount;
+            if (combinedBatSpeed < 20) combinedBatSpeed = 20;
+            allCapacitors->setFlow(combinedBatSpeed, false);
+        } else {
+            allCapacitors->setFlow(0, false);
+            allCapacitors->clear();
+        }
+
+        // --- B2. Füllstandsanzeige der einzelnen Kondensatoren ---
+        float batVoltage = currentState.busVoltage[0]; // Channel prüfen! Ggf. [1] nutzen
         float minV = 1.0;
         float maxV = 6.0;
 
@@ -69,92 +112,83 @@ void Task_Neopixel(void* pvParameters) {
         if (percentage > 1.0) percentage = 1.0;
 
         uint32_t batColor;
-        if (percentage > 0.5) {
-            batColor = Neopixels.Color(0, 119, 187); // Blau
-        } else if (percentage > 0.2) {
-            batColor = Neopixels.Color(238, 204, 17); // Gelb
-        } else {
-            batColor = Neopixels.Color(213, 94, 0);   // Rot/Orange
-        }
-
-        // 2. Das "Gesamt-Segment" (allCapacitors) ausschalten, damit es nicht stört
-        allCapacitors->setFlow(0, false);
-        allCapacitors->clear();
-
-        // 3. Durch die 4 einzelnen Kondensator-Segmente iterieren
-        int activeCount = currentState.batteryActiveCount; // z.B. 2 bedeutet: Cap 0 und 1 sind an
+        if (percentage > 0.5) batColor = Neopixels.Color(0, 119, 187);      // Blau
+        else if (percentage > 0.2) batColor = Neopixels.Color(238, 204, 17); // Gelb
+        else batColor = Neopixels.Color(213, 94, 0);                         // Rot/Orange
 
         for(int i=0; i<4; i++) {
-            // Zuerst Animation auf diesem Segment stoppen
+            // Zuerst Flow stoppen, da wir hier statisch füllen
             capacitors[i]->setFlow(0, false);
 
-            if (i < activeCount) {
-                // Kondensator ist AKTIV -> Füllstand anzeigen
-                
-                int len = capacitorsLengths[i];   // z.B. 3 LEDs
-                int start = capacitorsStart[i];   // Start-Index auf dem Strip
-
-                // Anzahl leuchtender LEDs berechnen
+            if (i < activeBatCount) {
+                int len = capacitorsLengths[i];
+                int start = capacitorsStart[i];
                 int ledsOn = (int)(percentage * len);
-                // Mindestens 1 LED an bei >1% Ladung, damit man sieht, dass er "lebt"
                 if (percentage > 0.01 && ledsOn == 0) ledsOn = 1;
 
-                // Pixel setzen
                 for(int j=0; j<len; j++) {
-                    if (j < ledsOn) {
-                        Neopixels.setPixelColor(start + j, batColor);
-                    } else {
-                        Neopixels.setPixelColor(start + j, 0); // Rest des Balkens aus
-                    }
+                    if (j < ledsOn) Neopixels.setPixelColor(start + j, batColor);
+                    else Neopixels.setPixelColor(start + j, 0);
                 }
-
             } else {
-                // Kondensator ist INAKTIV -> Komplett aus
                 capacitors[i]->clear();
             }
         }
 
 
         // =========================================================
-        // TEIL C: LOADS (Animation basierend auf Stromstärke Ch2)
+        // TEIL C: LOADS
         // =========================================================
-        float currentLoadTotal = currentState.current_mA[2]; // Channel 2 = Load
+        float currentLoadTotal = currentState.current_mA[2]; 
         int loadBaseSpeed = 0;
 
-        // Basis-Geschwindigkeit aus Gesamtstrom berechnen (0 - 700mA)
-        if (currentLoadTotal >= 5.0) { // Kleiner Schwellwert gegen Rauschen
+        if (currentLoadTotal >= 5.0) { 
             float clampedLoad = constrain(currentLoadTotal, 5.0, 700.0);
-            // 5mA = langsam (200ms), 700mA = sehr schnell (30ms)
             loadBaseSpeed = map((long)clampedLoad, 5, 700, 200, 30);
         }
 
-        // 1. Zuleitung (allLoads): Läuft immer mit dem Takt des Gesamtstroms
-        allLoads->setFlow(loadBaseSpeed, false);
+        // 1. Zählen, wie viele Verbraucher an sind
+        int activeLoadCount = 0;
+        if (currentState.constantLoadOn) activeLoadCount++;
+        if (currentState.nightLoadOn) activeLoadCount++;
+        if (currentState.heavyLoadOn) activeLoadCount++;
 
-        // 2. Heavy Load (Waschmaschine):
-        // Läuft nur, wenn sie eingeschaltet ist, und dann im Takt des Stroms.
+        // 2. Hauptleitung (allLoads) beschleunigen
+        if (activeLoadCount > 0 && loadBaseSpeed > 0) {
+            int combinedLoadSpeed = loadBaseSpeed / activeLoadCount;
+            if (combinedLoadSpeed < 20) combinedLoadSpeed = 20;
+            allLoads->setFlow(combinedLoadSpeed, false);
+        } else {
+            // Optional: Wenn Strom fließt, aber angeblich keine Last an ist (Leckstrom?), trotzdem langsam laufen lassen?
+            // Hier strikt: Wenn Zähler 0, dann aus, oder fallback auf baseSpeed wenn activeLoadCount 0 ist aber Strom da.
+            // Wir machen es strikt nach Schalterstellung:
+             allLoads->setFlow(0, false);
+             allLoads->clear();
+        }
+
+        // 3. Heavy Load
         if (currentState.heavyLoadOn) {
-            // Wenn Heavy Load an ist, dominiert sie meist den Stromverbrauch.
-            // Wir nutzen die berechnete Geschwindigkeit.
-            // Falls Strom < 5mA (z.B. Fehler oder Leerlauf), geben wir Minimalspeed (200ms) statt 'Aus', damit man sieht dass sie an ist.
             int heavySpeed = (loadBaseSpeed > 0) ? loadBaseSpeed : 200;
             heavyLoad->setFlow(heavySpeed, false); 
         } else {
-            heavyLoad->setFlow(0, false); // Aus
+            heavyLoad->setFlow(0, false); 
+            heavyLoad->clear();
         }
 
-        // 3. Andere Lasten (Light / Night):
-        // Wenn an, nutzen sie auch den "Strom-Takt" oder einen Standardwert, falls Strom sehr gering.
+        // 4. Constant Load
         if (currentState.constantLoadOn) {
             constantLoad->setFlow((loadBaseSpeed > 0) ? loadBaseSpeed : 150, false);
         } else {
             constantLoad->setFlow(0, false);
+            constantLoad->clear();
         }
 
+        // 5. Night Load
         if (currentState.nightLoadOn) {
             nightLoad->setFlow((loadBaseSpeed > 0) ? loadBaseSpeed : 150, false);
         } else {
             nightLoad->setFlow(0, false);
+            nightLoad->clear();
         }
 
 
@@ -162,11 +196,15 @@ void Task_Neopixel(void* pvParameters) {
         // UPDATE & SHOW
         // =========================================================
         
-        // Solar
         for(int i=0; i<4; i++) solarModules[i]->update();
         allSolarModules->update();
         
-        // Loads
+        // Kondensatoren müssen nicht update() rufen für Animation, da sie manuell gesetzt wurden,
+        // ABER allCapacitors läuft als Animation:
+        allCapacitors->update();
+        // Die einzelnen capacitors[i] haben wir oben direkt per setPixelColor gesetzt, 
+        // daher kein update() nötig, schadet aber auch nicht (speed ist eh 0).
+        
         allLoads->update();
         constantLoad->update();
         nightLoad->update();

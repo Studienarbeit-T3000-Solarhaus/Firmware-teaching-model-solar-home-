@@ -23,6 +23,32 @@ void Task_Control_GPIO(void* pvParameters) {
 
         // 2. Hardware schalten (nur wenn Daten gelesen wurden)
         if (gotData) {
+
+            // --- NEU: UNTERSPANNUNGSSCHUTZ ---
+            // Wenn Spannung an Channel 0 unter 1.1V fällt -> Alles aus
+            if (desiredState.busVoltage[0] < 1.1) {
+                // Lokale Steuerungsvariablen auf false setzen (Hardware schaltet gleich aus)
+                desiredState.constantLoadOn = false;
+                desiredState.nightLoadOn = false;
+                desiredState.heavyLoadOn = false;
+
+                // WICHTIG: Auch den globalen Shared Memory aktualisieren.
+                // Sonst würde das Webinterface noch "AN" anzeigen oder beim nächsten
+                // Klick die Last wieder aktivieren.
+                if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+                    sysState.constantLoadOn = false;
+                    sysState.nightLoadOn = false;
+                    sysState.heavyLoadOn = false;
+                    xSemaphoreGive(dataMutex);
+                }
+                
+                #ifdef DEBUG
+                // Optional: Ausgabe zur Diagnose, falls gewünscht
+                // Serial.println("Undervoltage protection active (< 1.1V)! Loads disabled.");
+                #endif
+            }
+            // ---------------------------------
+
             // Da der MCP23017 über I2C läuft, brauchen wir den I2C Mutex
             if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
                 if(desiredState.busVoltage[0] > 6) {

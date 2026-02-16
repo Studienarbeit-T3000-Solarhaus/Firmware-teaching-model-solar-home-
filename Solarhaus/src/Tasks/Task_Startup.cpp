@@ -71,6 +71,10 @@ void Task_Startup(void* pvParameters) {
     pinMode(ENABLE_BATTERY_PIN, OUTPUT);
     digitalWrite(ENABLE_BATTERY_PIN, LOW);
 
+    // MPPT PWM Pin
+    pinMode(MPPT_PWM_PIN, OUTPUT);
+    digitalWrite(MPPT_PWM_PIN, LOW);
+
     int GPIOExpanderPins[] = {
       SOLAR_CELL_1, SOLAR_CELL_2, SOLAR_CELL_3, SOLAR_CELL_4,
       CAPACITOR_1, CAPACITOR_2, CAPACITOR_3, CAPACITOR_4,
@@ -104,6 +108,7 @@ void Task_Startup(void* pvParameters) {
     xTaskCreate(Task_Control_GPIO, "GPIO Control Task", STACK_SIZE_CONTROL_GPIO_TASK, NULL, PRIORITY_CONTROL_GPIO_TASK, &TaskHandle_Control_GPIO);
     xTaskCreate(Task_Neopixel, "Neopixel Task", STACK_SIZE_NEOPIXEL_TASK, NULL, PRIORITY_NEOPIXEL_TASK, &TaskHandle_Neopixel);
     xTaskCreate(Task_Webserver, "Webserver Task", STACK_SIZE_WEBSERVER_TASK, NULL, PRIORITY_WEBSERVER_TASK, &TaskHandle_Webserver);
+    xTaskCreate(Task_MPPT, "MPPT Task", STACK_SIZE_MPPT_TASK, NULL, PRIORITY_MPPT_TASK, &TaskHandle_MPPT);
 
     #ifdef DEBUG
     xTaskCreate(Task_Debug, "Debug Task", STACK_SIZE_DEBUG_TASK, NULL, PRIORITY_DEBUG_TASK, &TaskHandle_Debug);

@@ -70,3 +70,6 @@
 // I2C Pins 
 #define I2C_SDA_PIN 6
 #define I2C_SCL_PIN 7
+
+// MPPT Pin
+#define MPPT_PWM_PIN 8

@@ -25,8 +25,8 @@ void Task_Control_GPIO(void* pvParameters) {
         if (gotData) {
 
             // --- NEU: UNTERSPANNUNGSSCHUTZ ---
-            // Wenn Spannung an Channel 0 unter 1.1V fällt -> Alles aus
-            if (desiredState.busVoltage[0] < 1.1) {
+            // Wenn Spannung an Channel 1 unter 1.1V fällt -> Alles aus
+            if (desiredState.busVoltage[1] < 1.1) {
                 // Lokale Steuerungsvariablen auf false setzen (Hardware schaltet gleich aus)
                 desiredState.constantLoadOn = false;
                 desiredState.nightLoadOn = false;
@@ -51,7 +51,7 @@ void Task_Control_GPIO(void* pvParameters) {
 
             // Da der MCP23017 über I2C läuft, brauchen wir den I2C Mutex
             if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-                if(desiredState.busVoltage[0] > 6) {
+                if(desiredState.busVoltage[1] > 6) {
                     desiredState.solarActiveCount = 0;
                     #ifdef DEBUG
                     Serial.println("Capacitance reached, turning off solar cells");

@@ -64,7 +64,7 @@ void Task_Webserver(void* pvParameters) {
 
         // JSON zusammenbauen
         // Allgemeine Statuswerte
-        json += "\"bus_voltage\":" + String(localSystemState.busVoltage[0], 3) + ",";
+        json += "\"bus_voltage\":" + String(localSystemState.busVoltage[1], 3) + ",";
         json += "\"solar_count\":" + String(solarCount) + ",";
         json += "\"battery_count\":" + String(batCount) + ",";
         

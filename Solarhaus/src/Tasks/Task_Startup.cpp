@@ -27,13 +27,13 @@ void Task_Startup(void* pvParameters) {
         Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, 1700000);
         
         if (!GPIOExpander.begin_I2C()) {
-            while (1); // TODO Error handling
+            //while (1); // TODO Error handling
         }
         #ifdef DEBUG
         printGPIOExpanderStatus();
         #endif
         if (!CurrentSensor.begin()) {
-            while (1); // TODO Error handling
+            //while (1); // TODO Error handling
         }
         #ifdef DEBUG
         for (int i = 0; i <= 2; i++) {

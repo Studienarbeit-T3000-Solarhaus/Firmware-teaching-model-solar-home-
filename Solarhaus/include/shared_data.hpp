@@ -51,6 +51,16 @@ struct SystemState {
     bool constantLoadOn;
     bool nightLoadOn;
     bool heavyLoadOn;
+
+    bool isSimActive;           // Ist der Zyklus aktiv?
+    bool isDayPhase;            // Sind wir gerade am Tag?
+    unsigned long simTimerStart; // Wann hat die aktuelle Phase begonnen?
+    int dayDurationSec;         // Dauer Tag in Sekunden
+    int nightDurationSec;       // Dauer Nacht in Sekunden
+
+    // --- Gespeicherte Start-Konfiguration ---
+    int configSolarCount;   // User-Einstellung für Solar
+    int configBatteryCount; // User-Einstellung für Kondensatoren (NEU)
 };
 
 // Global shared data 

@@ -67,6 +67,8 @@ void Task_Webserver(void* pvParameters) {
         json += "\"bus_voltage\":" + String(localSystemState.busVoltage[1], 3) + ",";
         json += "\"solar_count\":" + String(solarCount) + ",";
         json += "\"battery_count\":" + String(batCount) + ",";
+        json += "\"sim_active\":" + String(localSystemState.isSimActive ? "true" : "false") + ",";
+        json += "\"is_day\":" + String(localSystemState.isDayPhase ? "true" : "false") + ",";
         
         // Status der Verbraucher
         json += "\"const_on\":" + String(constLoadOn ? "true" : "false") + ",";
@@ -89,6 +91,11 @@ void Task_Webserver(void* pvParameters) {
             String action = request->getParam("action")->value();
             
             if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
+                if (sysState.isSimActive) {
+                    xSemaphoreGive(dataMutex);
+                    request->send(403, "text/plain", "Simulation Active");
+                    return;
+                }
                 int* countPtr = (type == "solar") ? &sysState.solarActiveCount : &sysState.batteryActiveCount;
                 int newCount = *countPtr;
 
@@ -113,6 +120,11 @@ void Task_Webserver(void* pvParameters) {
             String load = request->getParam("load")->value();
             
             if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
+                if (sysState.isSimActive) {
+                    xSemaphoreGive(dataMutex);
+                    request->send(403, "text/plain", "Simulation Active");
+                    return;
+                }
                 if (load == "const") {
                     sysState.constantLoadOn = !sysState.constantLoadOn;
                 } else if (load == "night") { 
@@ -120,6 +132,40 @@ void Task_Webserver(void* pvParameters) {
                 } else if (load == "heavy") { 
                     sysState.heavyLoadOn = !sysState.heavyLoadOn;
                 }
+                xSemaphoreGive(dataMutex);
+            }
+        }
+        request->send(200, "text/plain", "OK");
+    });
+
+    // Simulation Control API
+    server.on("/api/sim", HTTP_GET, [](AsyncWebServerRequest *request){
+        if (request->hasParam("active") && request->hasParam("dayTime") && request->hasParam("nightTime")) {
+            String activeStr = request->getParam("active")->value();
+            String dayStr = request->getParam("dayTime")->value();
+            String nightStr = request->getParam("nightTime")->value();
+            
+            bool setActive = (activeStr == "true");
+            int daySec = dayStr.toInt();
+            int nightSec = nightStr.toInt();
+
+            if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
+                sysState.isSimActive = setActive;
+                sysState.dayDurationSec = daySec;
+                sysState.nightDurationSec = nightSec;
+                
+                // Beim Starten Timer initialisieren & Startzustand (Tag) setzen
+                if (setActive) {
+                    // --- KONFIGURATION SPEICHERN ---
+                    // Wir merken uns, was der User eingestellt hat:
+                    sysState.configSolarCount = sysState.solarActiveCount;
+                    sysState.configBatteryCount = sysState.batteryActiveCount; // <--- NEU
+                    
+                    // Startwerte setzen
+                    sysState.simTimerStart = millis();
+                    sysState.isDayPhase = true; // Start mit Tag
+                }
+                
                 xSemaphoreGive(dataMutex);
             }
         }

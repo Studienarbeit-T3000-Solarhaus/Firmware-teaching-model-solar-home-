@@ -21,6 +21,39 @@ void Task_Control_GPIO(void* pvParameters) {
             xSemaphoreGive(dataMutex);
         }
 
+        // --- SIMULATION LOGIK ---
+        if (gotData && desiredState.isSimActive) {
+            unsigned long currentMillis = millis();
+            unsigned long durationMillis = (desiredState.isDayPhase ? desiredState.dayDurationSec : desiredState.nightDurationSec) * 1000UL;
+
+            // Ist die Zeit für die aktuelle Phase abgelaufen?
+            if (currentMillis - desiredState.simTimerStart >= durationMillis) {
+                desiredState.isDayPhase = !desiredState.isDayPhase; // Phase wechseln
+                desiredState.simTimerStart = currentMillis;         // Timer reset
+                
+                // Neue Zustände setzen basierend auf der gespeicherten Config
+                if (desiredState.isDayPhase) {
+                    // TAG: Solar an (gemerkte Anzahl)
+                    desiredState.solarActiveCount = desiredState.configSolarCount;
+                } else {
+                    // NACHT: Solar aus
+                    desiredState.solarActiveCount = 0;
+                }
+
+                // IMMER (Tag & Nacht): Batterie-Anzahl auf User-Config zwingen
+                desiredState.batteryActiveCount = desiredState.configBatteryCount;
+
+                // Änderungen zurück in den globalen Speicher schreiben
+                if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+                    sysState.isDayPhase = desiredState.isDayPhase;
+                    sysState.simTimerStart = desiredState.simTimerStart;
+                    sysState.solarActiveCount = desiredState.solarActiveCount;
+                    sysState.batteryActiveCount = desiredState.batteryActiveCount; // <--- Wichtig
+                    xSemaphoreGive(dataMutex);
+                }
+            }
+        }
+
         // 2. Hardware schalten (nur wenn Daten gelesen wurden)
         if (gotData) {
 

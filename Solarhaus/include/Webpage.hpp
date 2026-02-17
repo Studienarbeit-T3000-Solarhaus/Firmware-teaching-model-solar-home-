@@ -67,6 +67,13 @@ const char index_html[] PROGMEM = R"rawliteral(
         .info-table td { padding: 8px; border-bottom: 1px solid #eee; }
         .info-table td:first-child { font-weight: bold; color: #555; }
         .info-table td:last-child { text-align: right; font-family: monospace; }
+        
+        /* Simulation Banner */
+        .sim-banner { display:none; background-color:#e3f2fd; border:1px solid #90caf9; color:#0d47a1; padding:10px; border-radius:8px; margin-bottom:15px; text-align:center; font-size:14px; }
+        .sim-banner strong { font-size: 16px; }
+
+        /* Disabled State for Controls */
+        .controls-disabled { opacity: 0.5; pointer-events: none; filter: grayscale(80%); }
 
     </style>
 </head>
@@ -84,12 +91,17 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         <div id="ManualMode" class="tab-content active">
             
+            <div id="simInfoBanner" class="sim-banner">
+                Automatic Simulation Active<br>
+                Current Phase: <strong id="simPhaseDisplay">DAY</strong>
+            </div>
+
             <div class="section">
                 <div class="section-title">
                     Solar Panels
                     <span class="live-data" id="solarDataDisplay">0.0V | 0mA | 0mW</span>
                 </div>
-                <div class="control-row">
+                <div class="control-row" id="solarControls">
                     <div style="display:flex; flex-direction:column; gap:5px;">
                         <button class="btn btn-green" onclick="control('solar', 'inc')">+</button>
                         <button class="btn btn-red" onclick="control('solar', 'dec')">-</button>
@@ -108,7 +120,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                     <span class="live-data" id="battDataDisplay">0.0V | 0mA | 0mW</span>
                 </div>
                 <div class="battery-wrapper">
-                    <div class="battery-controls">
+                    <div class="battery-controls" id="battControls">
                         <div class="control-group">
                             <button class="btn btn-red" onclick="control('battery', 'dec')">-</button>
                             <span id="batteryStatus" style="font-weight:bold; color:#333;">0 / 4</span>
@@ -135,7 +147,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                     <span class="live-data" id="loadDataDisplay">0.0V | 0mA | 0mW</span>
                 </div>
                 
-                <div class="consumer-container">
+                <div class="consumer-container" id="loadControls">
                     <div class="consumer-item">
                         <button id="btnConst" class="consumer-btn btn-red" onclick="toggleLoad('const')">Constant Load</button>
                         <span class="theo-power">Est. Power: ~20mW</span>
@@ -156,24 +168,29 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         <div id="DayNightCycle" class="tab-content">
             <div class="section">
-                <div class="section-title">Automatic Simulation Control</div>
+                <div class="section-title">Automatic Cycle Control</div>
                 <p style="color:#666; font-size:14px; margin-bottom:20px;">
-                    Start the automatic simulation to cycle through day and night phases. 
-                    The system will automatically adjust solar input and loads.
+                    When active, the system automatically switches between Day (Solar ON, Light OFF) and Night (Solar OFF, Light ON).
+                    <br><strong>Manual controls are disabled during simulation.</strong>
                 </p>
                 
-                <div class="control-row" style="justify-content: center; gap: 15px; padding: 20px;">
-                    <button class="btn btn-green" style="width:120px;" onclick="alert('Simulation Start - Logic needed')">START</button>
-                    <button class="btn btn-red" style="width:120px;" onclick="alert('Simulation Stop - Logic needed')">STOP</button>
+                <div style="background:#fff; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom: 20px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                        <label>Day Duration (sec):</label>
+                        <input type="number" id="inpDayTime" value="10" min="2" max="300" style="width:60px; text-align:center;">
+                    </div>
+                    <div style="display:flex; justify-content:space-between;">
+                        <label>Night Duration (sec):</label>
+                        <input type="number" id="inpNightTime" value="10" min="2" max="300" style="width:60px; text-align:center;">
+                    </div>
                 </div>
 
-                <div class="section-title" style="margin-top:20px;">Simulation Speed</div>
-                <div style="background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #eee;">
-                    <input type="range" min="1" max="10" value="5" style="width:100%; cursor:pointer;">
-                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#555; margin-top:5px;">
-                        <span>Slow (Realtime)</span>
-                        <span>Fast (Demo)</span>
-                    </div>
+                <div class="control-row" style="justify-content: center; gap: 15px; padding: 20px;">
+                    <button id="btnSimToggle" class="btn btn-green" style="width:100%;" onclick="toggleSimulation()">START SIMULATION</button>
+                </div>
+                
+                <div id="simStatusText" style="text-align:center; font-weight:bold; color:#0077BB; margin-top:10px;">
+                    Status: INACTIVE
                 </div>
             </div>
         </div>
@@ -185,17 +202,21 @@ const char index_html[] PROGMEM = R"rawliteral(
                 <tr><td>Bus Voltage (Battery)</td><td id="info_v2">0.00 V</td></tr>
                 <tr><td>Bus Voltage (Load)</td><td id="info_v3">0.00 V</td></tr>
                 <tr><td>Total Power Draw</td><td id="info_ptotal">0 mW</td></tr>
+                <tr><td>Simulation Active</td><td id="info_sim">NO</td></tr>
                 <tr><td>Status</td><td style="color:green; font-weight:bold;">ONLINE</td></tr>
             </table>
             <br>
             <div style="font-size:12px; color:#999; text-align:center;">
-                Solar House Firmware v1.1<br>
+                Solar House Firmware v1.2<br>
                 Powered by ESP32-C3 & FreeRTOS
             </div>
         </div>
     </div>
 
     <script>
+        // Global Simulation State
+        let simActiveGlobal = false;
+
         function openTab(evt, tabName) {
             var i, tabcontent, tablinks;
             tabcontent = document.getElementsByClassName("tab-content");
@@ -212,16 +233,75 @@ const char index_html[] PROGMEM = R"rawliteral(
             evt.currentTarget.className += " active";
         }
 
+        function updateStateBlocking(active, isDay) {
+            // Zeige/Verstecke Banner im Manual Tab
+            const banner = document.getElementById('simInfoBanner');
+            const phaseText = document.getElementById('simPhaseDisplay');
+            
+            if (active) {
+                banner.style.display = 'block';
+                phaseText.innerText = isDay ? "DAY (Solar ON)" : "NIGHT (Lights ON)";
+                
+                // Farbe des Banners je nach Zeit
+                if(isDay) {
+                    banner.style.backgroundColor = '#fff9c4'; // hellgelb
+                    banner.style.borderColor = '#fbc02d';
+                    banner.style.color = '#f57f17';
+                } else {
+                    banner.style.backgroundColor = '#e3f2fd'; // hellblau
+                    banner.style.borderColor = '#90caf9';
+                    banner.style.color = '#0d47a1';
+                }
+            } else {
+                banner.style.display = 'none';
+            }
+
+            // Buttons deaktivieren, aber Messwerte lassen
+            const groupsToBlock = ['solarControls', 'battControls', 'loadControls'];
+            groupsToBlock.forEach(id => {
+                const el = document.getElementById(id);
+                if (active) {
+                    el.classList.add('controls-disabled');
+                } else {
+                    el.classList.remove('controls-disabled');
+                }
+            });
+        }
+
         function updateUI() {
             fetch('/status')
                 .then(response => response.json())
                 .then(data => {
-                    // --- Solar Section (CH1 in JSON / Channel 0) ---
+                    simActiveGlobal = data.sim_active;
+                    const isDay = data.is_day;
+
+                    // Update Blocking / Banner
+                    updateStateBlocking(simActiveGlobal, isDay);
+
+                    // Update Sim Tab UI
+                    const btn = document.getElementById('btnSimToggle');
+                    const statusTxt = document.getElementById('simStatusText');
+                    
+                    if (simActiveGlobal) {
+                        btn.innerText = "STOP SIMULATION";
+                        btn.className = "btn btn-red";
+                        statusTxt.innerText = "Status: RUNNING (" + (isDay ? "DAY" : "NIGHT") + ")";
+                        document.getElementById('inpDayTime').disabled = true;
+                        document.getElementById('inpNightTime').disabled = true;
+                    } else {
+                        btn.innerText = "START SIMULATION";
+                        btn.className = "btn btn-green";
+                        statusTxt.innerText = "Status: INACTIVE";
+                        document.getElementById('inpDayTime').disabled = false;
+                        document.getElementById('inpNightTime').disabled = false;
+                    }
+
+                    // --- Solar Section ---
                     document.getElementById('solarStatus').innerText = data.solar_count + " / 4 Active";
                     document.getElementById('solarDataDisplay').innerText = 
                         data.ch1_v.toFixed(2) + "V | " + data.ch1_ma.toFixed(0) + "mA | " + data.ch1_mw.toFixed(0) + "mW";
 
-                    // --- Battery Section (CH2 in JSON / Channel 1) ---
+                    // --- Battery Section ---
                     document.getElementById('batteryStatus').innerText = data.battery_count + " / 4";
                     document.getElementById('battDataDisplay').innerText = 
                         data.ch2_v.toFixed(2) + "V | " + data.ch2_ma.toFixed(0) + "mA | " + data.ch2_mw.toFixed(0) + "mW";
@@ -241,7 +321,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                     else if (percentage > 20) levelEl.style.backgroundColor = '#EECC11'; 
                     else levelEl.style.backgroundColor = '#D55E00'; 
 
-                    // --- Consumer Section (CH3 in JSON / Channel 2) ---
+                    // --- Consumer Section ---
                     document.getElementById('loadDataDisplay').innerText = 
                         data.ch3_v.toFixed(2) + "V | " + data.ch3_ma.toFixed(0) + "mA | " + data.ch3_mw.toFixed(0) + "mW";
 
@@ -255,18 +335,31 @@ const char index_html[] PROGMEM = R"rawliteral(
                     document.getElementById('info_v2').innerText = data.ch2_v.toFixed(3) + " V";
                     document.getElementById('info_v3').innerText = data.ch3_v.toFixed(3) + " V";
                     document.getElementById('info_ptotal').innerText = (data.ch1_mw + data.ch2_mw + data.ch3_mw).toFixed(0) + " mW";
+                    document.getElementById('info_sim').innerText = simActiveGlobal ? "YES" : "NO";
                 });
         }
 
         function control(type, action) {
+            // Frontend-Side check (optional, backend blocks too)
+            if(simActiveGlobal) return; 
             fetch(`/api/control?type=${type}&action=${action}`).then(() => updateUI());
         }
 
         function toggleLoad(load) {
+            if(simActiveGlobal) return;
             fetch(`/api/toggle?load=${load}`).then(() => updateUI());
         }
 
-        setInterval(updateUI, 50);
+        function toggleSimulation() {
+            const newState = !simActiveGlobal;
+            const dayT = document.getElementById('inpDayTime').value;
+            const nightT = document.getElementById('inpNightTime').value;
+
+            fetch(`/api/sim?active=${newState}&dayTime=${dayT}&nightTime=${nightT}`)
+                .then(() => updateUI());
+        }
+
+        setInterval(updateUI, 100); 
         window.onload = updateUI;
     </script>
 </body>

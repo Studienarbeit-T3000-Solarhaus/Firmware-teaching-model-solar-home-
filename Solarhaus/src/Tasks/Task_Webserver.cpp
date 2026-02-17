@@ -70,7 +70,7 @@ void Task_Webserver(void* pvParameters) {
         json += "\"sim_active\":" + String(localSystemState.isSimActive ? "true" : "false") + ",";
         json += "\"is_day\":" + String(localSystemState.isDayPhase ? "true" : "false") + ",";
         json += "\"cur_cycle\":" + String(localSystemState.currentCycle) + ",";
-        json += "\"max_cycles\":" + String(localSystemState.targetCycles); 
+        json += "\"max_cycles\":" + String(localSystemState.targetCycles)+ ","; 
         
         // Status der Verbraucher
         json += "\"const_on\":" + String(constLoadOn ? "true" : "false") + ",";

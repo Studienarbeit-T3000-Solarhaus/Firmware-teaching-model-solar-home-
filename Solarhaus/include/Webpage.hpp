@@ -130,8 +130,8 @@ const char index_html[] PROGMEM = R"rawliteral(
                             <button class="btn btn-green" onclick="control('battery', 'inc')">+</button>
                         </div>
                         <div style="display:flex; justify-content: space-between; gap: 5px;">
-                            <button class="btn btn-red btn-wide" style="flex:1" onclick="control('battery', 'all_off')">OFF</button>
-                            <button class="btn btn-green btn-wide" style="flex:1" onclick="control('battery', 'all_on')">MAX</button>
+                            <button class="btn btn-red btn-wide" style="flex:1" onclick="control('battery', 'all_off')">ALL OFF</button> 
+                            <button class="btn btn-green btn-wide" style="flex:1" onclick="control('battery', 'all_on')">ALL ON</button>
                         </div>
                     </div>
 

@@ -61,6 +61,9 @@ struct SystemState {
     // --- Gespeicherte Start-Konfiguration ---
     int configSolarCount;   // User-Einstellung für Solar
     int configBatteryCount; // User-Einstellung für Kondensatoren (NEU)
+    // --- NEU: Zyklen ---
+    int targetCycles;       // Wie viele Zyklen sollen laufen?
+    int currentCycle;       // Wo sind wir gerade?
 };
 
 // Global shared data 

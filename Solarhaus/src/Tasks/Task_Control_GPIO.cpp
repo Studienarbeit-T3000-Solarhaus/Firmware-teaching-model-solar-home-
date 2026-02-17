@@ -26,29 +26,47 @@ void Task_Control_GPIO(void* pvParameters) {
             unsigned long currentMillis = millis();
             unsigned long durationMillis = (desiredState.isDayPhase ? desiredState.dayDurationSec : desiredState.nightDurationSec) * 1000UL;
 
-            // Ist die Zeit für die aktuelle Phase abgelaufen?
+            // Zeit abgelaufen?
             if (currentMillis - desiredState.simTimerStart >= durationMillis) {
-                desiredState.isDayPhase = !desiredState.isDayPhase; // Phase wechseln
-                desiredState.simTimerStart = currentMillis;         // Timer reset
                 
-                // Neue Zustände setzen basierend auf der gespeicherten Config
+                // Entscheidung: Was passiert als nächstes?
                 if (desiredState.isDayPhase) {
-                    // TAG: Solar an (gemerkte Anzahl)
-                    desiredState.solarActiveCount = desiredState.configSolarCount;
-                } else {
-                    // NACHT: Solar aus
+                    // Tag ist vorbei -> Es wird Nacht
+                    desiredState.isDayPhase = false; 
+                    desiredState.simTimerStart = currentMillis;
+                    
+                    // Nacht-Zustand: Solar aus, Licht an (optional, hier lassen wir User-Licht an, aber Solar MUSS aus)
                     desiredState.solarActiveCount = 0;
+                    desiredState.batteryActiveCount = desiredState.configBatteryCount;
+                    
+                } else {
+                    // Nacht ist vorbei -> Zyklus zu Ende oder neuer Tag?
+                    if (desiredState.currentCycle >= desiredState.targetCycles) {
+                        // ZIEL ERREICHT -> STOP
+                        desiredState.isSimActive = false;
+                        // Optional: Alles ausschalten oder so lassen? 
+                        // Wir lassen es meist so oder setzen Solar auf 0.
+                        desiredState.solarActiveCount = 0; 
+                    } else {
+                        // Weiter geht's: Neuer Tag, neuer Zyklus
+                        desiredState.isDayPhase = true;
+                        desiredState.currentCycle++;
+                        desiredState.simTimerStart = currentMillis;
+                        
+                        // Tag-Zustand: Solar wieder an
+                        desiredState.solarActiveCount = desiredState.configSolarCount;
+                        desiredState.batteryActiveCount = desiredState.configBatteryCount;
+                    }
                 }
 
-                // IMMER (Tag & Nacht): Batterie-Anzahl auf User-Config zwingen
-                desiredState.batteryActiveCount = desiredState.configBatteryCount;
-
-                // Änderungen zurück in den globalen Speicher schreiben
+                // Änderungen zurückschreiben
                 if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+                    sysState.isSimActive = desiredState.isSimActive; // Wichtig falls gestoppt wurde
                     sysState.isDayPhase = desiredState.isDayPhase;
                     sysState.simTimerStart = desiredState.simTimerStart;
+                    sysState.currentCycle = desiredState.currentCycle;
                     sysState.solarActiveCount = desiredState.solarActiveCount;
-                    sysState.batteryActiveCount = desiredState.batteryActiveCount; // <--- Wichtig
+                    sysState.batteryActiveCount = desiredState.batteryActiveCount;
                     xSemaphoreGive(dataMutex);
                 }
             }

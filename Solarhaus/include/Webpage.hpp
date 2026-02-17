@@ -75,6 +75,9 @@ const char index_html[] PROGMEM = R"rawliteral(
         /* Disabled State for Controls */
         .controls-disabled { opacity: 0.5; pointer-events: none; filter: grayscale(80%); }
 
+        /* Sim Inputs */
+        .sim-input { width:60px; text-align:center; padding:5px; border-radius:5px; border:1px solid #ccc; font-size: 14px; }
+
     </style>
 </head>
 <body>
@@ -170,19 +173,50 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div class="section">
                 <div class="section-title">Automatic Cycle Control</div>
                 <p style="color:#666; font-size:14px; margin-bottom:20px;">
-                    When active, the system automatically switches between Day (Solar ON, Light OFF) and Night (Solar OFF, Light ON).
-                    <br><strong>Manual controls are disabled during simulation.</strong>
+                    Configure the simulation parameters below. The system will loop through Day/Night phases for the specified number of cycles.
                 </p>
                 
                 <div style="background:#fff; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom: 20px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                        <label>Day Duration (sec):</label>
-                        <input type="number" id="inpDayTime" value="10" min="2" max="300" style="width:60px; text-align:center;">
+                    
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
+                        <label>Day Duration (s):</label>
+                        <input type="number" id="inpDayTime" value="10" min="2" max="300" class="sim-input">
                     </div>
-                    <div style="display:flex; justify-content:space-between;">
-                        <label>Night Duration (sec):</label>
-                        <input type="number" id="inpNightTime" value="10" min="2" max="300" style="width:60px; text-align:center;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items:center;">
+                        <label>Night Duration (s):</label>
+                        <input type="number" id="inpNightTime" value="10" min="2" max="300" class="sim-input">
                     </div>
+
+                    <hr style="border:0; border-top:1px solid #eee; margin: 10px 0;">
+
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
+                        <label>Solar Cells (Day):</label>
+                        <select id="inpSolarConfig" class="sim-input">
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4" selected>4</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items:center;">
+                        <label>Capacitors (Always):</label>
+                        <select id="inpBatConfig" class="sim-input">
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4" selected>4</option>
+                        </select>
+                    </div>
+
+                    <hr style="border:0; border-top:1px solid #eee; margin: 10px 0;">
+
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="font-weight:bold;">Total Cycles:</label>
+                        <input type="number" id="inpCycles" value="3" min="1" max="50" class="sim-input">
+                    </div>
+
                 </div>
 
                 <div class="control-row" style="justify-content: center; gap: 15px; padding: 20px;">
@@ -234,7 +268,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
 
         function updateStateBlocking(active, isDay) {
-            // Zeige/Verstecke Banner im Manual Tab
             const banner = document.getElementById('simInfoBanner');
             const phaseText = document.getElementById('simPhaseDisplay');
             
@@ -242,13 +275,12 @@ const char index_html[] PROGMEM = R"rawliteral(
                 banner.style.display = 'block';
                 phaseText.innerText = isDay ? "DAY (Solar ON)" : "NIGHT (Lights ON)";
                 
-                // Farbe des Banners je nach Zeit
                 if(isDay) {
-                    banner.style.backgroundColor = '#fff9c4'; // hellgelb
+                    banner.style.backgroundColor = '#fff9c4'; 
                     banner.style.borderColor = '#fbc02d';
                     banner.style.color = '#f57f17';
                 } else {
-                    banner.style.backgroundColor = '#e3f2fd'; // hellblau
+                    banner.style.backgroundColor = '#e3f2fd'; 
                     banner.style.borderColor = '#90caf9';
                     banner.style.color = '#0d47a1';
                 }
@@ -256,7 +288,6 @@ const char index_html[] PROGMEM = R"rawliteral(
                 banner.style.display = 'none';
             }
 
-            // Buttons deaktivieren, aber Messwerte lassen
             const groupsToBlock = ['solarControls', 'battControls', 'loadControls'];
             groupsToBlock.forEach(id => {
                 const el = document.getElementById(id);
@@ -275,38 +306,41 @@ const char index_html[] PROGMEM = R"rawliteral(
                     simActiveGlobal = data.sim_active;
                     const isDay = data.is_day;
 
-                    // Update Blocking / Banner
                     updateStateBlocking(simActiveGlobal, isDay);
 
-                    // Update Sim Tab UI
                     const btn = document.getElementById('btnSimToggle');
                     const statusTxt = document.getElementById('simStatusText');
-                    
+                    const simInputs = document.querySelectorAll('.sim-input');
+
                     if (simActiveGlobal) {
                         btn.innerText = "STOP SIMULATION";
                         btn.className = "btn btn-red";
-                        statusTxt.innerText = "Status: RUNNING (" + (isDay ? "DAY" : "NIGHT") + ")";
-                        document.getElementById('inpDayTime').disabled = true;
-                        document.getElementById('inpNightTime').disabled = true;
+                        
+                        // Check if fields exist in JSON (backward compatibility)
+                        let curC = data.cur_cycle !== undefined ? data.cur_cycle : "?";
+                        let maxC = data.max_cycles !== undefined ? data.max_cycles : "?";
+                        
+                        let cycleInfo = `Cycle ${curC} / ${maxC}`;
+                        let phaseInfo = isDay ? "DAY ☀️" : "NIGHT 🌙";
+                        statusTxt.innerText = `${phaseInfo} | ${cycleInfo}`;
+                        
+                        simInputs.forEach(el => el.disabled = true);
                     } else {
                         btn.innerText = "START SIMULATION";
                         btn.className = "btn btn-green";
                         statusTxt.innerText = "Status: INACTIVE";
-                        document.getElementById('inpDayTime').disabled = false;
-                        document.getElementById('inpNightTime').disabled = false;
+                        
+                        simInputs.forEach(el => el.disabled = false);
                     }
 
-                    // --- Solar Section ---
                     document.getElementById('solarStatus').innerText = data.solar_count + " / 4 Active";
                     document.getElementById('solarDataDisplay').innerText = 
                         data.ch1_v.toFixed(2) + "V | " + data.ch1_ma.toFixed(0) + "mA | " + data.ch1_mw.toFixed(0) + "mW";
 
-                    // --- Battery Section ---
                     document.getElementById('batteryStatus').innerText = data.battery_count + " / 4";
                     document.getElementById('battDataDisplay').innerText = 
                         data.ch2_v.toFixed(2) + "V | " + data.ch2_ma.toFixed(0) + "mA | " + data.ch2_mw.toFixed(0) + "mW";
 
-                    // Battery Visual
                     const minVoltage = 1.0; 
                     const maxVoltage = 6.0; 
                     let percentage = ((data.bus_voltage - minVoltage) / (maxVoltage - minVoltage)) * 100;
@@ -321,16 +355,13 @@ const char index_html[] PROGMEM = R"rawliteral(
                     else if (percentage > 20) levelEl.style.backgroundColor = '#EECC11'; 
                     else levelEl.style.backgroundColor = '#D55E00'; 
 
-                    // --- Consumer Section ---
                     document.getElementById('loadDataDisplay').innerText = 
                         data.ch3_v.toFixed(2) + "V | " + data.ch3_ma.toFixed(0) + "mA | " + data.ch3_mw.toFixed(0) + "mW";
 
-                    // Update Button Colors
                     document.getElementById('btnConst').className = data.const_on ? 'consumer-btn btn-green' : 'consumer-btn btn-red';
                     document.getElementById('btnNight').className = data.night_on ? 'consumer-btn btn-green' : 'consumer-btn btn-red';
                     document.getElementById('btnHeavy').className = data.heavy_on ? 'consumer-btn btn-green' : 'consumer-btn btn-red';
 
-                    // --- Info Tab Updates ---
                     document.getElementById('info_v1').innerText = data.ch1_v.toFixed(3) + " V";
                     document.getElementById('info_v2').innerText = data.ch2_v.toFixed(3) + " V";
                     document.getElementById('info_v3').innerText = data.ch3_v.toFixed(3) + " V";
@@ -340,7 +371,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
 
         function control(type, action) {
-            // Frontend-Side check (optional, backend blocks too)
             if(simActiveGlobal) return; 
             fetch(`/api/control?type=${type}&action=${action}`).then(() => updateUI());
         }
@@ -351,12 +381,29 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
 
         function toggleSimulation() {
-            const newState = !simActiveGlobal;
-            const dayT = document.getElementById('inpDayTime').value;
-            const nightT = document.getElementById('inpNightTime').value;
+            if (simActiveGlobal) {
+                fetch(`/api/sim?active=false`).then(() => updateUI());
+                return;
+            }
 
-            fetch(`/api/sim?active=${newState}&dayTime=${dayT}&nightTime=${nightT}`)
-                .then(() => updateUI());
+            // Sicherheitscheck: Sind die Elemente da?
+            const elDay = document.getElementById('inpDayTime');
+            const elSolar = document.getElementById('inpSolarConfig');
+            
+            if (!elDay || !elSolar) {
+                alert("Fehler: HTML-Elemente nicht gefunden! Bitte Browser Cache leeren (Strg+F5).");
+                return;
+            }
+
+            const dayT = elDay.value;
+            const nightT = document.getElementById('inpNightTime').value;
+            const cycles = document.getElementById('inpCycles').value;
+            const solar = elSolar.value;
+            const bat = document.getElementById('inpBatConfig').value;
+
+            const url = `/api/sim?active=true&dayTime=${dayT}&nightTime=${nightT}&cycles=${cycles}&solar=${solar}&bat=${bat}`;
+            
+            fetch(url).then(() => updateUI());
         }
 
         setInterval(updateUI, 100); 

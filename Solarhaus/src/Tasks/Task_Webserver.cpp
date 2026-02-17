@@ -69,6 +69,8 @@ void Task_Webserver(void* pvParameters) {
         json += "\"battery_count\":" + String(batCount) + ",";
         json += "\"sim_active\":" + String(localSystemState.isSimActive ? "true" : "false") + ",";
         json += "\"is_day\":" + String(localSystemState.isDayPhase ? "true" : "false") + ",";
+        json += "\"cur_cycle\":" + String(localSystemState.currentCycle) + ",";
+        json += "\"max_cycles\":" + String(localSystemState.targetCycles); 
         
         // Status der Verbraucher
         json += "\"const_on\":" + String(constLoadOn ? "true" : "false") + ",";
@@ -139,31 +141,34 @@ void Task_Webserver(void* pvParameters) {
     });
 
     // Simulation Control API
+    // Simulation Control API
     server.on("/api/sim", HTTP_GET, [](AsyncWebServerRequest *request){
-        if (request->hasParam("active") && request->hasParam("dayTime") && request->hasParam("nightTime")) {
-            String activeStr = request->getParam("active")->value();
-            String dayStr = request->getParam("dayTime")->value();
-            String nightStr = request->getParam("nightTime")->value();
+        if (request->hasParam("active")) {
+            bool setActive = (request->getParam("active")->value() == "true");
             
-            bool setActive = (activeStr == "true");
-            int daySec = dayStr.toInt();
-            int nightSec = nightStr.toInt();
-
             if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
                 sysState.isSimActive = setActive;
-                sysState.dayDurationSec = daySec;
-                sysState.nightDurationSec = nightSec;
-                
-                // Beim Starten Timer initialisieren & Startzustand (Tag) setzen
+
+                // Nur wenn wir Starten (active=true), lesen wir die Konfig-Werte ein
                 if (setActive) {
-                    // --- KONFIGURATION SPEICHERN ---
-                    // Wir merken uns, was der User eingestellt hat:
-                    sysState.configSolarCount = sysState.solarActiveCount;
-                    sysState.configBatteryCount = sysState.batteryActiveCount; // <--- NEU
+                    if(request->hasParam("dayTime")) sysState.dayDurationSec = request->getParam("dayTime")->value().toInt();
+                    if(request->hasParam("nightTime")) sysState.nightDurationSec = request->getParam("nightTime")->value().toInt();
                     
-                    // Startwerte setzen
+                    // --- NEU: Zyklen & Hardware Config direkt aus Params ---
+                    if(request->hasParam("cycles")) sysState.targetCycles = request->getParam("cycles")->value().toInt();
+                    if(request->hasParam("solar")) sysState.configSolarCount = request->getParam("solar")->value().toInt();
+                    if(request->hasParam("bat")) sysState.configBatteryCount = request->getParam("bat")->value().toInt();
+                    // -------------------------------------------------------
+
+                    // Start-Initialisierung
                     sysState.simTimerStart = millis();
-                    sysState.isDayPhase = true; // Start mit Tag
+                    sysState.isDayPhase = true;      // Start mit Tag
+                    sysState.currentCycle = 1;       // Wir starten im 1. Zyklus
+                    
+                    // Hardware sofort setzen für den Start
+                    sysState.solarActiveCount = sysState.configSolarCount;
+                    sysState.batteryActiveCount = sysState.configBatteryCount;
+                    sysState.nightLoadOn = false;    // Licht aus am Tag
                 }
                 
                 xSemaphoreGive(dataMutex);

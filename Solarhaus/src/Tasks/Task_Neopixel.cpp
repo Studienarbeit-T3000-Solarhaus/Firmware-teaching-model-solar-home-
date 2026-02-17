@@ -82,7 +82,7 @@ void Task_Neopixel(void* pvParameters) {
         // =========================================================
         
         // --- B1. Hauptleitung (allCapacitors) Animation ---
-        float currentBat = abs(currentState.current_mA[0]); // Betrag des Stroms (Laden/Entladen)
+        float currentBat = abs(currentState.current_mA[1]); // Betrag des Stroms (Laden/Entladen)
         int activeBatCount = currentState.batteryActiveCount;
         int batAnimSpeed = 0;
 
@@ -103,7 +103,7 @@ void Task_Neopixel(void* pvParameters) {
         }
 
         // --- B2. Füllstandsanzeige der einzelnen Kondensatoren ---
-        float batVoltage = currentState.busVoltage[0]; // Channel prüfen! Ggf. [1] nutzen
+        float batVoltage = currentState.busVoltage[1]; // Channel prüfen! Ggf. [1] nutzen
         float minV = 1.0;
         float maxV = 6.0;
 

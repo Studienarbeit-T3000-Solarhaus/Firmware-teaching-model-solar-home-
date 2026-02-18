@@ -217,6 +217,34 @@ void Task_Webserver(void* pvParameters) {
         json += "]}";
         request->send(200, "application/json", json);
     });
+
+    server.on("/setMode", HTTP_GET, [](AsyncWebServerRequest *request){
+        if (request->hasParam("auto")) {
+            String autoVal = request->getParam("auto")->value();
+            if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                sysState.mppt_auto_mode = (autoVal == "1");
+                xSemaphoreGive(dataMutex);
+            }
+        }
+        request->send(200, "text/plain", "OK");
+    });
+
+    // NEU: PWM Slider Wert setzen
+    server.on("/setPWM", HTTP_GET, [](AsyncWebServerRequest *request){
+        if (request->hasParam("value")) {
+            String pwmVal = request->getParam("value")->value();
+            int val = pwmVal.toInt();
+            if (val < 0) val = 0;
+            if (val > 255) val = 255;
+            
+            if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                sysState.manual_pwm_value = val;
+                xSemaphoreGive(dataMutex);
+            }
+        }
+        request->send(200, "text/plain", "OK");
+    });
+
     server.begin();
 
     while(1) {

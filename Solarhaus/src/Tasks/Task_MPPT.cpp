@@ -5,122 +5,166 @@
 #include "DebugConfig.hpp"
 #include <Arduino.h>
 
-// PWM Konfiguration für den RC-Filter
-const int MPPT_PWM_CHANNEL = 0; // Kanal 0
-const int MPPT_PWM_FREQ = 20000; // 20 kHz
-const int MPPT_PWM_RES = 8;      // 8 Bit (0-255)
+// --- KONFIGURATION FÜR 100k/10k/10k SETUP ---
 
-// Limits für die Injektion
-// 255 = 3.3V Injektion -> Buck regelt Spannung weit RUNTER (Weniger Last)
-// 0   = 0.0V Injektion -> Buck regelt Spannung HOCH (Mehr Last)
-const int PWM_MAX_INJECT = 250; // Maximale Drosselung (Fast aus)
-const int PWM_MIN_INJECT = 0;   // Maximale Power
+// Hardware-Setup:
+// R_Top = 100k, R_Bottom = 10k -> V_native = 6.6V
+// R_Inject = 10k an ESP32
+//
+// Formel: V_out = 12.6V - 10 * V_inject
+//
+// PWM 0   (0.0V) -> 12.6V Output -> ZERSTÖRUNG!
+// PWM 52  (0.67V)-> 5.9V Output  -> MAXIMALE POWER (Spannungsgrenze Kondensator)
+// PWM 100 (1.3V) -> 0.0V Output  -> BUCK AUS (Startzustand)
+// PWM 115 (>1.5V)-> Latch-Off    -> CHIP ABSTURZ
+
+const int MPPT_PWM_CHANNEL = 0;
+const int MPPT_PWM_FREQ = 20000;
+const int MPPT_PWM_RES = 8;
+
+// SICHERHEITSGRENZEN (Nicht ändern ohne Nachrechnen!)
+const int PWM_LIMIT_MIN_VOLTAGE = 105; // Entspricht ca. 0V Ausgang (Buck aus)
+const int PWM_LIMIT_MAX_VOLTAGE = 52;  // Entspricht ca. 6.0V Ausgang (Max für Kondensator)
+
+// Achtung: Invertierte Logik für den Programmierer!
+// Kleinerer PWM Wert = HÖHERE Ausgangsspannung = MEHR Last
+// Größerer PWM Wert = NIEDRIGERE Ausgangsspannung = WENIGER Last
 
 void Task_MPPT(void* pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
-    // PWM Setup
+    // 1. PWM Setup
     ledcSetup(MPPT_PWM_CHANNEL, MPPT_PWM_FREQ, MPPT_PWM_RES);
     ledcAttachPin(MPPT_PWM_PIN, MPPT_PWM_CHANNEL);
 
-    // Startzustand: Wir fangen "sanft" an
-    int currentDutyCycle = 240; 
+    // 2. Sicherer Startzustand (Buck "Aus")
+    // Wir fangen mit hoher Injektion an -> Ausgangsspannung niedrig
+    int currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE; // ca. 100
     ledcWrite(MPPT_PWM_CHANNEL, currentDutyCycle);
-    
-    // MPPT Variablen
+
+    // Variablen für MPPT
     float prevPower = 0.0;
-    // float prevVoltage = 0.0; // Wird aktuell nicht genutzt, aber okay
-    int stepSize = 1;     // Wie aggressiv regeln wir?
-    bool direction = true; // true = DutyCycle erhöhen (Last senken), false = verringern
-    
-    // Warte kurz bis System stabil
+    int stepSize = 1;      
+    bool directionIncreasesPWM = true; // true = wir erhöhen PWM (Last senken), false = wir senken PWM (Last erhöhen)
+
+    // Warten bis System stabil (2 Sekunden)
     vTaskDelay(pdMS_TO_TICKS(2000));
 
     while (1) {
         float currentSolarPower = 0.0;
         float currentSolarVoltage = 0.0;
+        float outputCapVoltage = 0.0;
+        
+        bool autoMode = true;
+        int manualTarget = 100;
         bool dataValid = false;
 
-        // 1. Aktuelle Werte aus dem Shared Memory holen (ohne I2C Blockade!)
+        // --- DATEN HOLEN ---
         if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-            // Channel 0 ist Solar laut Task_Webserver.cpp
+            // INA3221 Channel 0 = Solar Input
             currentSolarPower = sysState.power_mW[0];
             currentSolarVoltage = sysState.busVoltage[0];
+            
+            // INA3221 Channel 1 (oder 2?) = Ausgang/Kondensator
+            // Bitte prüfen, wo dein Ausgang angeschlossen ist! 
+            // Ich nehme hier Index 1 an (Channel 2 des INA).
+            outputCapVoltage = sysState.busVoltage[1]; 
+            
+            // Webserver Steuerung
+            autoMode = sysState.mppt_auto_mode;
+            manualTarget = sysState.manual_pwm_value;
+            
             dataValid = true;
             xSemaphoreGive(dataMutex);
         }
 
         if (dataValid) {
-            // --- SICHERHEITS-CHECK ---
-            // Anpassung für 8V Solarpanel:
-            // Wenn die Spannung unter 3.0V fällt (Panel kollabiert), Last wegnehmen.
-            // Der alte Wert (9.0) war zu hoch für ein 8V System.
-            if (currentSolarVoltage < 3.0) { 
-                currentDutyCycle = 250; // Maximale Injektion -> Buck drosseln
+            
+            // --- NOT-AUS: ÜBERSPANNUNGSSCHUTZ ---
+            // Wenn Kondensator über 6.1V geht, sofort abregeln!
+            if (outputCapVoltage > 6.1) {
+                // PWM erhöhen -> Spannung senken
+                currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE; // Buck aus (0V Ziel)
                 ledcWrite(MPPT_PWM_CHANNEL, currentDutyCycle);
-                prevPower = 0; // Algorithmus resetten
                 
-                #ifdef DEBUG
-                // Optional: Info, dass Schutz aktiv ist
-                // Serial.println("MPPT: Voltage too low (<3.0V) -> Reset logic");
-                #endif
-            } 
-            else {
-                // --- PERTURB & OBSERVE ALGORITHMUS ---
+                // Algorithmus für diesen Durchlauf abbrechen
+                vTaskDelayUntil(&xLastWakeTime, PERIOD_MPPT_TASK);
+                continue; 
+            }
+
+            // --- STEUERUNG ---
+            if (!autoMode) {
+                // *** MANUELLER MODUS (Slider) ***
                 
-                // Leistungsdifferenz
-                float powerDiff = currentSolarPower - prevPower;
+                // Der Slider kommt vom Webserver (0-255).
+                // Wir müssen ihn sicher begrenzen.
+                if (manualTarget < PWM_LIMIT_MAX_VOLTAGE) manualTarget = PWM_LIMIT_MAX_VOLTAGE; // Nicht unter 52
+                if (manualTarget > PWM_LIMIT_MIN_VOLTAGE) manualTarget = PWM_LIMIT_MIN_VOLTAGE; // Nicht über 105
                 
-                // Wir regeln nur, wenn sich die Leistung signifikant geändert hat (Rauschen filtern)
-                if (abs(powerDiff) > 4.0) { // > 10mW Änderung
-                    
-                    if (powerDiff > 0) {
-                        // Leistung ist GESTIEGEN -> Wir gehen in die richtige Richtung!
-                        // Richtung beibehalten.
-                    } else {
-                        // Leistung ist GESUNKEN -> Falsche Richtung!
-                        // Richtung umkehren.
-                        direction = !direction;
+                currentDutyCycle = manualTarget;
+                
+            } else {
+                // *** AUTO MPPT (Perturb & Observe) ***
+                
+                // 1. Wenn Solarspannung kritisch tief (< 9V), Last wegnehmen
+                if (currentSolarVoltage < 3.0) {
+                    currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE; // Buck fast aus
+                } 
+                else {
+                    // 2. Normaler P&O Algorithmus
+                    float powerDiff = currentSolarPower - prevPower;
+
+                    // Nur regeln, wenn Änderung messbar (> 10mW)
+                    if (abs(powerDiff) > 0.5) {
+                        
+                        if (powerDiff > 0) {
+                            // Leistung ist gestiegen -> Weiter so!
+                            // Richtung beibehalten.
+                        } else {
+                            // Leistung gesunken -> Falsche Richtung!
+                            // Richtung umkehren.
+                            directionIncreasesPWM = !directionIncreasesPWM;
+                        }
+
+                        // Schritt ausführen
+                        if (directionIncreasesPWM) {
+                            currentDutyCycle += stepSize; // PWM hoch = Spannung runter (weniger Last)
+                        } else {
+                            currentDutyCycle -= stepSize; // PWM runter = Spannung hoch (mehr Last)
+                        }
                     }
-
-                    // Neuen PWM Wert berechnen
-                    if (direction) {
-                        currentDutyCycle += stepSize; // Mehr Injektion = Weniger Last
-                    } else {
-                        currentDutyCycle -= stepSize; // Weniger Injektion = Mehr Last
-                    }
                 }
-
-                // --- LIMITS ---
-                if (currentDutyCycle > PWM_MAX_INJECT) {
-                    currentDutyCycle = PWM_MAX_INJECT;
-                    direction = false; // Zwinge Umkehr beim nächsten Mal
-                }
-                if (currentDutyCycle < PWM_MIN_INJECT) {
-                    currentDutyCycle = PWM_MIN_INJECT;
-                    direction = true; // Zwinge Umkehr
-                }
-
-                // Neuen Wert schreiben
-                ledcWrite(MPPT_PWM_CHANNEL, currentDutyCycle);
-
-                // Werte für nächsten Zyklus speichern
                 prevPower = currentSolarPower;
             }
 
-            // --- DEBUG AUSGABE ---
-            #ifdef DEBUG
-            Serial.print("MPPT Duty Cycle: ");
-            Serial.print(currentDutyCycle);
-            Serial.print(" | Volt: ");
-            Serial.print(currentSolarVoltage);
-            Serial.print(" V | Power: ");
-            Serial.print(currentSolarPower);
-            Serial.println(" mW");
-            #endif
-        }
+            // --- HARTE LIMITS (CLAMPING) ---
+            // Das ist der wichtigste Teil zum Schutz der Hardware!
+            if (currentDutyCycle < PWM_LIMIT_MAX_VOLTAGE) currentDutyCycle = PWM_LIMIT_MAX_VOLTAGE; // min 52
+            if (currentDutyCycle > PWM_LIMIT_MIN_VOLTAGE) currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE; // max 105
 
-        // Frequenz einhalten
+            // --- AUSGABE ---
+            ledcWrite(MPPT_PWM_CHANNEL, currentDutyCycle);
+            
+            // Optional: PWM Wert in sysState schreiben für Debugging/Webseite
+            // if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            //    sysState.debug_pwm = currentDutyCycle; // Müsste in shared_data.hpp ergänzt werden
+            //    xSemaphoreGive(dataMutex);
+            // }
+        }
+        #ifdef DEBUG
+        
+        // Debug-Ausgabe
+        Serial.print("MPPT | Solar: ");
+        Serial.print(currentSolarVoltage, 2);
+        Serial.print("V, ");
+        Serial.print(currentSolarPower, 1);
+        Serial.print("mW | Cap: ");
+        Serial.print(outputCapVoltage, 2);
+        Serial.print("V | PWM: ");
+        Serial.println(currentDutyCycle);
+        #endif
+
+        // Zykluszeit einhalten
         vTaskDelayUntil(&xLastWakeTime, PERIOD_MPPT_TASK);
     }
 }

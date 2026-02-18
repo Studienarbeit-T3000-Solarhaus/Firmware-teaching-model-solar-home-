@@ -17,6 +17,7 @@ void setup() {
     // init mutexes
     i2cMutex = xSemaphoreCreateMutex();
     dataMutex = xSemaphoreCreateMutex();
+    logMutex = xSemaphoreCreateMutex();
     // Create Startup task
     xTaskCreate(Task_Startup, "Startup Task", STACK_SIZE_STARTUP_TASK, NULL, PRIORITY_STARTUP_TASK, &TaskHandle_Startup);
 

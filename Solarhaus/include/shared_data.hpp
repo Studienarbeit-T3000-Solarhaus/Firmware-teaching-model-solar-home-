@@ -3,6 +3,7 @@
 #include <Adafruit_INA3221.h>
 #include <Adafruit_MCP23X17.h>
 #include <Adafruit_NeoPixel.h>
+#include <vector>
 
 // Mutexes
 extern SemaphoreHandle_t i2cMutex;
@@ -66,9 +67,18 @@ struct SystemState {
     int currentCycle;       // Wo sind wir gerade?
 };
 
+// Struktur für einen Datenpunkt
+struct SimDataPoint {
+    unsigned long timestamp; // Zeit in ms seit Start der Sim
+    float vSolar, iSolar;
+    float vBat, iBat;
+};
+
 // Global shared data 
 extern Adafruit_INA3221 CurrentSensor;
 extern Adafruit_MCP23X17 GPIOExpander;
 extern Adafruit_NeoPixel Neopixels;
 extern SystemState sysState;
 
+extern std::vector<SimDataPoint> simulationLog; // <--- NEU
+extern SemaphoreHandle_t logMutex;              // <--- NEU

@@ -7,7 +7,7 @@
 
 void Task_Control_GPIO(void* pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
-
+    static unsigned long lastLogTime = 0;
     // Lokale Kopie des Status, um Mutex-Zeit kurz zu halten
     SystemState desiredState;
 
@@ -26,6 +26,33 @@ void Task_Control_GPIO(void* pvParameters) {
             unsigned long currentMillis = millis();
             unsigned long durationMillis = (desiredState.isDayPhase ? desiredState.dayDurationSec : desiredState.nightDurationSec) * 1000UL;
 
+
+            // --- NEU: LOGGING (Jede Sekunde) ---
+            if (currentMillis - lastLogTime >= 1000) {
+                lastLogTime = currentMillis;
+                
+                SimDataPoint pt;
+                pt.timestamp = currentMillis - desiredState.simTimerStart; // Relative Zeit wäre schöner, aber absolut ist auch ok
+                // Wir nutzen hier einfach millis() oder relative Zeit innerhalb der Phase?
+                // Einfacher für den Plot: Laufzeit seit Beginn der Simulation session?
+                // Da wir simTimerStart bei Phasenwechsel resetten, ist das schwierig.
+                // Nehmen wir einfach eine fortlaufende Nummer oder Zeit.
+                // Besser: Wir loggen einfach, Frontend kümmert sich um X-Achse.
+                
+                pt.vSolar = desiredState.busVoltage[0];
+                pt.iSolar = desiredState.current_mA[0];
+                pt.vBat = desiredState.busVoltage[1];
+                pt.iBat = desiredState.current_mA[1];
+
+                if (xSemaphoreTake(logMutex, pdMS_TO_TICKS(10))) {
+                    // Speicher begrenzen (z.B. max 3600 Punkte = 1 Stunde)
+                    if (simulationLog.size() < 3600) {
+                        simulationLog.push_back(pt);
+                    }
+                    xSemaphoreGive(logMutex);
+                }
+            }
+            
             // Zeit abgelaufen?
             if (currentMillis - desiredState.simTimerStart >= durationMillis) {
                 

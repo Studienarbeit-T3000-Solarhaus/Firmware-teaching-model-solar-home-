@@ -97,6 +97,10 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div id="simInfoBanner" class="sim-banner">
                 Automatic Simulation Active<br>
                 Current Phase: <strong id="simPhaseDisplay">DAY</strong>
+                
+                <div style="width: 100%; background-color: rgba(0,0,0,0.1); height: 8px; border-radius: 4px; margin-top: 8px; overflow: hidden;">
+                  <div id="simProgressBar" style="width: 0%; height: 100%; background-color: #4CAF50; transition: width 0.3s linear;"></div>
+                </div>
             </div>
 
             <div class="section">
@@ -152,18 +156,18 @@ const char index_html[] PROGMEM = R"rawliteral(
                 
                 <div class="consumer-container" id="loadControls">
                     <div class="consumer-item">
-                        <button id="btnConst" class="consumer-btn btn-red" onclick="toggleLoad('const')">Constant Load</button>
-                        <span class="theo-power">Est. Power: ~20mW</span>
+                        <button id="btnConst" class="consumer-btn btn-red" onclick="toggleLoad('const')">Constant load</button>
+                        <span class="theo-power">Est. Power: ~90 mW</span>
                     </div>
 
                     <div class="consumer-item">
-                        <button id="btnNight" class="consumer-btn btn-red" onclick="toggleLoad('night')">Night Light</button>
-                        <span class="theo-power">Est. Power: ~100mW</span>
+                        <button id="btnNight" class="consumer-btn btn-red" onclick="toggleLoad('night')">Night load</button>
+                        <span class="theo-power">Est. Power: ~450 mW</span>
                     </div>
 
                     <div class="consumer-item">
-                        <button id="btnHeavy" class="consumer-btn btn-red" onclick="toggleLoad('heavy')">Heavy Machine</button>
-                        <span class="theo-power">Est. Power: ~500mW</span>
+                        <button id="btnHeavy" class="consumer-btn btn-red" onclick="toggleLoad('heavy')">Heavy load</button>
+                        <span class="theo-power">Est. Power: ~1800 mW</span>
                     </div>
                 </div>
             </div>
@@ -226,6 +230,17 @@ const char index_html[] PROGMEM = R"rawliteral(
                 <div id="simStatusText" style="text-align:center; font-weight:bold; color:#0077BB; margin-top:10px;">
                     Status: INACTIVE
                 </div>
+
+                <div class="section" style="margin-top: 20px;">
+                    <div class="section-title">Simulation Results</div>
+                    <div style="position: relative; height:300px; width:100%; border:1px solid #eee; border-radius:10px; overflow:hidden;">
+                        <canvas id="simChart"></canvas>
+                    </div>
+                    <div style="text-align:center; font-size:12px; color:#666; margin-top:5px;">
+                        <span style="color:#FFC107">● Solar Voltage</span> &nbsp;&nbsp; 
+                        <span style="color:#0077BB">● Battery Voltage</span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -241,7 +256,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             </table>
             <br>
             <div style="font-size:12px; color:#999; text-align:center;">
-                Solar House Firmware v1.2<br>
+                Solar House Firmware v1.4<br>
                 Powered by ESP32-C3 & FreeRTOS
             </div>
         </div>
@@ -250,6 +265,8 @@ const char index_html[] PROGMEM = R"rawliteral(
     <script>
         // Global Simulation State
         let simActiveGlobal = false;
+        let wasSimActive = false;
+        let isUpdating = false; // Blockiert parallele Requests
 
         function openTab(evt, tabName) {
             var i, tabcontent, tablinks;
@@ -300,11 +317,21 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
 
         function updateUI() {
+            // Wenn noch ein Update läuft, abbrechen (verhindert Stau)
+            if (isUpdating) return;
+            isUpdating = true;
+
             fetch('/status')
                 .then(response => response.json())
                 .then(data => {
                     simActiveGlobal = data.sim_active;
                     const isDay = data.is_day;
+
+                    // --- Simulation beendet? ---
+                    if (wasSimActive && !simActiveGlobal) {
+                        loadHistoryData();
+                    }
+                    wasSimActive = simActiveGlobal;
 
                     updateStateBlocking(simActiveGlobal, isDay);
 
@@ -315,8 +342,16 @@ const char index_html[] PROGMEM = R"rawliteral(
                     if (simActiveGlobal) {
                         btn.innerText = "STOP SIMULATION";
                         btn.className = "btn btn-red";
+
+                        // Balken
+                        if (data.sim_progress !== undefined) {
+                            let pct = data.sim_progress * 100;
+                            const bar = document.getElementById('simProgressBar');
+                            bar.style.width = pct + '%';
+                            if (isDay) bar.style.backgroundColor = '#FFC107'; 
+                            else bar.style.backgroundColor = '#3F51B5';
+                        }
                         
-                        // Check if fields exist in JSON (backward compatibility)
                         let curC = data.cur_cycle !== undefined ? data.cur_cycle : "?";
                         let maxC = data.max_cycles !== undefined ? data.max_cycles : "?";
                         
@@ -329,10 +364,10 @@ const char index_html[] PROGMEM = R"rawliteral(
                         btn.innerText = "START SIMULATION";
                         btn.className = "btn btn-green";
                         statusTxt.innerText = "Status: INACTIVE";
-                        
                         simInputs.forEach(el => el.disabled = false);
                     }
 
+                    // Werte anzeigen
                     document.getElementById('solarStatus').innerText = data.solar_count + " / 4 Active";
                     document.getElementById('solarDataDisplay').innerText = 
                         data.ch1_v.toFixed(2) + "V | " + data.ch1_ma.toFixed(0) + "mA | " + data.ch1_mw.toFixed(0) + "mW";
@@ -350,7 +385,6 @@ const char index_html[] PROGMEM = R"rawliteral(
                     const levelEl = document.getElementById('battLevel');
                     levelEl.style.height = percentage + '%';
                     document.getElementById('battText').innerText = Math.round(percentage) + '%';
-
                     if (percentage > 50) levelEl.style.backgroundColor = '#0077BB'; 
                     else if (percentage > 20) levelEl.style.backgroundColor = '#EECC11'; 
                     else levelEl.style.backgroundColor = '#D55E00'; 
@@ -367,46 +401,149 @@ const char index_html[] PROGMEM = R"rawliteral(
                     document.getElementById('info_v3').innerText = data.ch3_v.toFixed(3) + " V";
                     document.getElementById('info_ptotal').innerText = (data.ch1_mw + data.ch2_mw + data.ch3_mw).toFixed(0) + " mW";
                     document.getElementById('info_sim').innerText = simActiveGlobal ? "YES" : "NO";
+                })
+                .catch(err => console.error(err))
+                .finally(() => {
+                    isUpdating = false; // Flag wieder freigeben
                 });
         }
 
         function control(type, action) {
             if(simActiveGlobal) return; 
-            fetch(`/api/control?type=${type}&action=${action}`).then(() => updateUI());
+            fetch(`/api/control?type=${type}&action=${action}`).then(() => { /* updateUI wird sowieso aufgerufen */ });
         }
 
         function toggleLoad(load) {
             if(simActiveGlobal) return;
-            fetch(`/api/toggle?load=${load}`).then(() => updateUI());
+            fetch(`/api/toggle?load=${load}`).then(() => { /* updateUI wird sowieso aufgerufen */ });
+        }
+
+        function loadHistoryData() {
+            fetch('/api/history')
+                .then(res => res.json())
+                .then(json => {
+                    // Datenformat: [vSolar, iSolar, vBat, iBat]
+                    drawSimChart(json.data);
+                })
+                .catch(err => console.error("History Error:", err));
+        }
+
+        function drawSimChart(data) {
+            const canvas = document.getElementById('simChart');
+            const ctx = canvas.getContext('2d');
+            
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            
+            if (rect.width === 0) return;
+
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            
+            const width = rect.width;
+            const height = rect.height;
+
+            ctx.clearRect(0, 0, width, height);
+
+            if (!data || data.length < 2) {
+                ctx.fillStyle = "#666";
+                ctx.font = "14px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("No data or not enough points.", width/2, height/2);
+                return;
+            }
+
+            let maxV = 5.0; 
+            for(let i=0; i<data.length; i++) {
+                if(data[i][0] > maxV) maxV = data[i][0];
+                if(data[i][2] > maxV) maxV = data[i][2];
+            }
+            maxV = Math.ceil(maxV * 1.1);
+
+            const paddingLeft = 30;
+            const paddingBottom = 20;
+            const paddingTop = 10;
+            const paddingRight = 10;
+            
+            const chartW = width - paddingLeft - paddingRight;
+            const chartH = height - paddingBottom - paddingTop;
+
+            const getX = (i) => paddingLeft + (i / (data.length - 1)) * chartW;
+            const getY = (v) => height - paddingBottom - (v / maxV) * chartH;
+
+            // Grid
+            ctx.strokeStyle = "#eee";
+            ctx.lineWidth = 1;
+            ctx.fillStyle = "#888";
+            ctx.font = "10px sans-serif";
+            ctx.textAlign = "right";
+            
+            for(let i=0; i<=5; i++) {
+                const val = (maxV / 5) * i;
+                const y = getY(val);
+                ctx.beginPath();
+                ctx.moveTo(paddingLeft, y);
+                ctx.lineTo(width - paddingRight, y);
+                ctx.stroke();
+                ctx.fillText(val.toFixed(1) + "V", paddingLeft - 5, y + 3);
+            }
+
+            // Achsen
+            ctx.strokeStyle = "#aaa";
+            ctx.beginPath();
+            ctx.moveTo(paddingLeft, paddingTop);
+            ctx.lineTo(paddingLeft, height - paddingBottom);
+            ctx.lineTo(width - paddingRight, height - paddingBottom);
+            ctx.stroke();
+
+            // Solar Voltage (Index 0) - Gelb
+            ctx.beginPath();
+            ctx.strokeStyle = "#FFC107";
+            ctx.lineWidth = 2;
+            for(let i=0; i<data.length; i++) {
+                ctx.lineTo(getX(i), getY(data[i][0]));
+            }
+            ctx.stroke();
+
+            // Battery Voltage (Index 2) - Blau
+            ctx.beginPath();
+            ctx.strokeStyle = "#0077BB";
+            ctx.lineWidth = 2;
+            for(let i=0; i<data.length; i++) {
+                ctx.lineTo(getX(i), getY(data[i][2]));
+            }
+            ctx.stroke();
+            
+            // X-Achsen Beschriftung
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#666";
+            const step = Math.ceil(data.length / 8);
+            for(let i=0; i<data.length; i+=step) {
+                ctx.fillText(i + "s", getX(i), height - 5);
+            }
         }
 
         function toggleSimulation() {
             if (simActiveGlobal) {
-                fetch(`/api/sim?active=false`).then(() => updateUI());
+                fetch(`/api/sim?active=false`).then(() => { /* Warten auf nächsten updateUI */ });
                 return;
             }
-
-            // Sicherheitscheck: Sind die Elemente da?
             const elDay = document.getElementById('inpDayTime');
-            const elSolar = document.getElementById('inpSolarConfig');
-            
-            if (!elDay || !elSolar) {
-                alert("Fehler: HTML-Elemente nicht gefunden! Bitte Browser Cache leeren (Strg+F5).");
-                return;
-            }
+            if (!elDay) return;
 
             const dayT = elDay.value;
             const nightT = document.getElementById('inpNightTime').value;
             const cycles = document.getElementById('inpCycles').value;
-            const solar = elSolar.value;
+            const solar = document.getElementById('inpSolarConfig').value;
             const bat = document.getElementById('inpBatConfig').value;
 
             const url = `/api/sim?active=true&dayTime=${dayT}&nightTime=${nightT}&cycles=${cycles}&solar=${solar}&bat=${bat}`;
-            
-            fetch(url).then(() => updateUI());
+            fetch(url).then(() => { /* Warten auf nächsten updateUI */ });
         }
 
-        setInterval(updateUI, 100); 
+        // Intervall auf 250ms erhöht, um ESP32 nicht zu überlasten
+        setInterval(updateUI, 250); 
         window.onload = updateUI;
     </script>
 </body>

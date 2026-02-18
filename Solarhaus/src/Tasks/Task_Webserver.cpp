@@ -62,6 +62,19 @@ void Task_Webserver(void* pvParameters) {
             xSemaphoreGive(dataMutex);
         }
 
+        // --- NEU: Fortschritt berechnen ---
+        float progress = 0.0;
+        if (localSystemState.isSimActive) {
+            unsigned long currentMillis = millis();
+            unsigned long durationMillis = (localSystemState.isDayPhase ? localSystemState.dayDurationSec : localSystemState.nightDurationSec) * 1000UL;
+            
+            if (durationMillis > 0) {
+                unsigned long elapsed = currentMillis - localSystemState.simTimerStart;
+                progress = (float)elapsed / (float)durationMillis;
+                if (progress > 1.0) progress = 1.0;
+            }
+        }
+
         // JSON zusammenbauen
         // Allgemeine Statuswerte
         json += "\"bus_voltage\":" + String(localSystemState.busVoltage[1], 3) + ",";
@@ -71,7 +84,7 @@ void Task_Webserver(void* pvParameters) {
         json += "\"is_day\":" + String(localSystemState.isDayPhase ? "true" : "false") + ",";
         json += "\"cur_cycle\":" + String(localSystemState.currentCycle) + ",";
         json += "\"max_cycles\":" + String(localSystemState.targetCycles)+ ","; 
-        
+        json += "\"sim_progress\":" + String(progress, 3) + ",";
         // Status der Verbraucher
         json += "\"const_on\":" + String(constLoadOn ? "true" : "false") + ",";
         json += "\"night_on\":" + String(nightLoadOn ? "true" : "false") + ",";
@@ -141,7 +154,6 @@ void Task_Webserver(void* pvParameters) {
     });
 
     // Simulation Control API
-    // Simulation Control API
     server.on("/api/sim", HTTP_GET, [](AsyncWebServerRequest *request){
         if (request->hasParam("active")) {
             bool setActive = (request->getParam("active")->value() == "true");
@@ -160,6 +172,13 @@ void Task_Webserver(void* pvParameters) {
                     if(request->hasParam("bat")) sysState.configBatteryCount = request->getParam("bat")->value().toInt();
                     // -------------------------------------------------------
 
+                    // --- NEU: Log leeren beim Start ---
+                    if (xSemaphoreTake(logMutex, pdMS_TO_TICKS(200))) {
+                        simulationLog.clear();
+                        xSemaphoreGive(logMutex);
+                    }
+                    // ---------------------------------
+
                     // Start-Initialisierung
                     sysState.simTimerStart = millis();
                     sysState.isDayPhase = true;      // Start mit Tag
@@ -177,6 +196,27 @@ void Task_Webserver(void* pvParameters) {
         request->send(200, "text/plain", "OK");
     });
 
+
+    // History API
+    server.on("/api/history", HTTP_GET, [](AsyncWebServerRequest *request){
+        String json = "{\"data\":[";
+        
+        if (xSemaphoreTake(logMutex, pdMS_TO_TICKS(500))) {
+            for (size_t i = 0; i < simulationLog.size(); i++) {
+                json += "[";
+                // Um Platz zu sparen, senden wir Arrays statt Objekte: [vSolar, iSolar, vBat, iBat]
+                json += String(simulationLog[i].vSolar, 2) + ",";
+                json += String(simulationLog[i].iSolar, 0) + ",";
+                json += String(simulationLog[i].vBat, 2) + ",";
+                json += String(simulationLog[i].iBat, 0);
+                json += "]";
+                if (i < simulationLog.size() - 1) json += ",";
+            }
+            xSemaphoreGive(logMutex);
+        }
+        json += "]}";
+        request->send(200, "application/json", json);
+    });
     server.begin();
 
     while(1) {

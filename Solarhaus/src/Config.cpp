@@ -2,7 +2,7 @@
 
 // WIFI
 const char* ssid = "SolarHaus_WiFi";
-const char* password = "password123";
+const char* password = "";
 
 // Farben definieren
 // Achtung: Neopixels.Color() kann hier noch nicht aufgerufen werden, 

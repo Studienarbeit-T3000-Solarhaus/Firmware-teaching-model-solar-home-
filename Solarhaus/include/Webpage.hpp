@@ -293,6 +293,16 @@ const char index_html[] PROGMEM = R"rawliteral(
         let simActiveGlobal = false;
         let wasSimActive = false;
         let isUpdating = false; // Blockiert parallele Requests
+        
+        // --- NEU: Globale Variable für Diagrammdaten ---
+        let globalChartData = null; 
+
+        // --- NEU: Resize Event-Listener für automatische Bildschirmanpassung ---
+        window.addEventListener('resize', () => {
+            if (globalChartData && globalChartData.length > 0) {
+                drawSimChart(globalChartData);
+            }
+        });
 
         function openTab(evt, tabName) {
             var i, tabcontent, tablinks;
@@ -343,7 +353,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
 
         function updateUI() {
-            // Wenn noch ein Update läuft, abbrechen (verhindert Stau)
             if (isUpdating) return;
             isUpdating = true;
 
@@ -353,7 +362,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                     simActiveGlobal = data.sim_active;
                     const isDay = data.is_day;
 
-                    // --- Simulation beendet? ---
+                    // --- Simulation beendet? Lade Diagrammdaten! ---
                     if (wasSimActive && !simActiveGlobal) {
                         loadHistoryData();
                     }
@@ -430,26 +439,26 @@ const char index_html[] PROGMEM = R"rawliteral(
                 })
                 .catch(err => console.error(err))
                 .finally(() => {
-                    isUpdating = false; // Flag wieder freigeben
+                    isUpdating = false; 
                 });
         }
 
         function control(type, action) {
             if(simActiveGlobal) return; 
-            fetch(`/api/control?type=${type}&action=${action}`).then(() => { /* updateUI wird sowieso aufgerufen */ });
+            fetch(`/api/control?type=${type}&action=${action}`);
         }
 
         function toggleLoad(load) {
             if(simActiveGlobal) return;
-            fetch(`/api/toggle?load=${load}`).then(() => { /* updateUI wird sowieso aufgerufen */ });
+            fetch(`/api/toggle?load=${load}`);
         }
 
         function loadHistoryData() {
             fetch('/api/history')
                 .then(res => res.json())
                 .then(json => {
-                    // Datenformat: [vSolar, iSolar, vBat, iBat]
-                    drawSimChart(json.data);
+                    globalChartData = json.data; // --- NEU: Daten zwischenspeichern ---
+                    drawSimChart(globalChartData);
                 })
                 .catch(err => console.error("History Error:", err));
         }
@@ -463,6 +472,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             
             if (rect.width === 0) return;
 
+            // Auflösung für scharfe Darstellung setzen
             canvas.width = rect.width * dpr;
             canvas.height = rect.height * dpr;
             ctx.scale(dpr, dpr);
@@ -487,18 +497,20 @@ const char index_html[] PROGMEM = R"rawliteral(
             }
             maxV = Math.ceil(maxV * 1.1);
 
-            const paddingLeft = 30;
-            const paddingBottom = 20;
+            const paddingLeft = 35;
+            const paddingBottom = 25;
             const paddingTop = 10;
-            const paddingRight = 10;
+            const paddingRight = 15;
             
             const chartW = width - paddingLeft - paddingRight;
             const chartH = height - paddingBottom - paddingTop;
 
-            const getX = (i) => paddingLeft + (i / (data.length - 1)) * chartW;
+            // --- NEU: Zeit skalieren (Absicherung gegen 0 bei kurzen Verläufen) ---
+            const maxTime = Math.max(data.length - 1, 1);
+            const getX = (i) => paddingLeft + (i / maxTime) * chartW;
             const getY = (v) => height - paddingBottom - (v / maxV) * chartH;
 
-            // Grid
+            // Grid zeichnen (Y-Achse)
             ctx.strokeStyle = "#eee";
             ctx.lineWidth = 1;
             ctx.fillStyle = "#888";
@@ -515,7 +527,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                 ctx.fillText(val.toFixed(1) + "V", paddingLeft - 5, y + 3);
             }
 
-            // Achsen
+            // Achsen-Linien
             ctx.strokeStyle = "#aaa";
             ctx.beginPath();
             ctx.moveTo(paddingLeft, paddingTop);
@@ -523,7 +535,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             ctx.lineTo(width - paddingRight, height - paddingBottom);
             ctx.stroke();
 
-            // Solar Voltage (Index 0) - Gelb
+            // Linie: Solar Voltage (Index 0) - Gelb
             ctx.beginPath();
             ctx.strokeStyle = "#FFC107";
             ctx.lineWidth = 2;
@@ -532,7 +544,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             }
             ctx.stroke();
 
-            // Battery Voltage (Index 2) - Blau
+            // Linie: Battery Voltage (Index 2) - Blau
             ctx.beginPath();
             ctx.strokeStyle = "#0077BB";
             ctx.lineWidth = 2;
@@ -541,18 +553,35 @@ const char index_html[] PROGMEM = R"rawliteral(
             }
             ctx.stroke();
             
-            // X-Achsen Beschriftung
+            // --- NEU: X-Achsen Beschriftung dynamisch zur Bildschirmgröße ---
             ctx.textAlign = "center";
             ctx.fillStyle = "#666";
-            const step = Math.ceil(data.length / 8);
+            
+            // Kalkuliere, wie viele Labels auf den Bildschirm passen (ca. alle 60 Pixel)
+            const labelSpacingPixels = 60;
+            const targetLabels = Math.max(2, Math.floor(chartW / labelSpacingPixels));
+            
+            // Berechne die Schrittweite (Zeitintervall) für die Darstellung
+            const step = Math.max(1, Math.ceil(data.length / targetLabels));
+            
             for(let i=0; i<data.length; i+=step) {
-                ctx.fillText(i + "s", getX(i), height - 5);
+                const xPos = getX(i);
+                
+                // Zeichne einen kleinen Trennstrich auf der Achse
+                ctx.beginPath();
+                ctx.moveTo(xPos, height - paddingBottom);
+                ctx.lineTo(xPos, height - paddingBottom + 5);
+                ctx.strokeStyle = "#aaa";
+                ctx.stroke();
+
+                // Beschriftung der Sekunden
+                ctx.fillText(i + "s", xPos, height - 5);
             }
         }
 
         function toggleSimulation() {
             if (simActiveGlobal) {
-                fetch(`/api/sim?active=false`).then(() => { /* Warten auf nächsten updateUI */ });
+                fetch(`/api/sim?active=false`);
                 return;
             }
             const elDay = document.getElementById('inpDayTime');
@@ -565,33 +594,30 @@ const char index_html[] PROGMEM = R"rawliteral(
             const bat = document.getElementById('inpBatConfig').value;
 
             const url = `/api/sim?active=true&dayTime=${dayT}&nightTime=${nightT}&cycles=${cycles}&solar=${solar}&bat=${bat}`;
-            fetch(url).then(() => { /* Warten auf nächsten updateUI */ });
+            fetch(url);
         }
 
         var isAuto = true;
 
-  function toggleMode() {
-    var checkBox = document.getElementById("modeSwitch");
-    isAuto = !checkBox.checked; // Checkbox an = Manuell (also Auto = false)
-    
-    document.getElementById("modeLabel").innerText = isAuto ? "AUTO" : "MANUELL";
-    document.getElementById("pwmSlider").disabled = isAuto;
-    
-    // An Server senden
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", "/setMode?auto=" + (isAuto ? "1" : "0"), true);
-    xhr.send();
-  }
+        function toggleMode() {
+            var checkBox = document.getElementById("modeSwitch");
+            isAuto = !checkBox.checked; 
+            
+            document.getElementById("modeLabel").innerText = isAuto ? "AUTO" : "MANUELL";
+            document.getElementById("pwmSlider").disabled = isAuto;
+            
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "/setMode?auto=" + (isAuto ? "1" : "0"), true);
+            xhr.send();
+        }
 
-  function updateSlider(val) {
-    document.getElementById("pwmValue").innerText = val;
-    // An Server senden
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", "/setPWM?value=" + val, true);
-    xhr.send();
-  }
+        function updateSlider(val) {
+            document.getElementById("pwmValue").innerText = val;
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "/setPWM?value=" + val, true);
+            xhr.send();
+        }
 
-        // Intervall auf 250ms erhöht, um ESP32 nicht zu überlasten
         setInterval(updateUI, 250); 
         window.onload = updateUI;
     </script>

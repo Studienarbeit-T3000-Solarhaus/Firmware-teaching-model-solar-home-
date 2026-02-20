@@ -171,6 +171,9 @@ void Task_Webserver(void* pvParameters) {
                     if(request->hasParam("solar")) sysState.configSolarCount = request->getParam("solar")->value().toInt();
                     if(request->hasParam("bat")) sysState.configBatteryCount = request->getParam("bat")->value().toInt();
                     // -------------------------------------------------------
+                    // NEU: Parameter für Constant Load auslesen
+                    if(request->hasParam("nightConst")) sysState.configNightConstantLoad = (request->getParam("nightConst")->value() == "1");
+                    // -------------------------------------------------------
 
                     // --- NEU: Log leeren beim Start ---
                     if (xSemaphoreTake(logMutex, pdMS_TO_TICKS(200))) {
@@ -188,6 +191,7 @@ void Task_Webserver(void* pvParameters) {
                     sysState.solarActiveCount = sysState.configSolarCount;
                     sysState.batteryActiveCount = sysState.configBatteryCount;
                     sysState.nightLoadOn = false;    // Licht aus am Tag
+                    sysState.constantLoadOn = false;
                 }
                 
                 xSemaphoreGive(dataMutex);

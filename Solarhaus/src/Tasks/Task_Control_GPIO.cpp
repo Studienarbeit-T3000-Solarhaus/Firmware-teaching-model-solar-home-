@@ -65,6 +65,8 @@ void Task_Control_GPIO(void* pvParameters) {
                     // Nacht-Zustand: Solar aus, Licht an (optional, hier lassen wir User-Licht an, aber Solar MUSS aus)
                     desiredState.solarActiveCount = 0;
                     desiredState.batteryActiveCount = desiredState.configBatteryCount;
+                    // <--- NEU: Last entsprechend der Einstellung für die Nacht einschalten
+                    desiredState.constantLoadOn = desiredState.configNightConstantLoad;
                     
                 } else {
                     // Nacht ist vorbei -> Zyklus zu Ende oder neuer Tag?
@@ -74,6 +76,7 @@ void Task_Control_GPIO(void* pvParameters) {
                         // Optional: Alles ausschalten oder so lassen? 
                         // Wir lassen es meist so oder setzen Solar auf 0.
                         desiredState.solarActiveCount = 0; 
+                        desiredState.constantLoadOn = false; // <--- NEU: Nach Simulation ausschalten
                     } else {
                         // Weiter geht's: Neuer Tag, neuer Zyklus
                         desiredState.isDayPhase = true;
@@ -83,6 +86,8 @@ void Task_Control_GPIO(void* pvParameters) {
                         // Tag-Zustand: Solar wieder an
                         desiredState.solarActiveCount = desiredState.configSolarCount;
                         desiredState.batteryActiveCount = desiredState.configBatteryCount;
+                        // <--- NEU: Am Tag die Constant Load wieder ausschalten
+                        desiredState.constantLoadOn = false;
                     }
                 }
 
@@ -94,6 +99,8 @@ void Task_Control_GPIO(void* pvParameters) {
                     sysState.currentCycle = desiredState.currentCycle;
                     sysState.solarActiveCount = desiredState.solarActiveCount;
                     sysState.batteryActiveCount = desiredState.batteryActiveCount;
+                    // <--- NEU: Geänderten Zustand der Last in den Globalen Status übernehmen
+                    sysState.constantLoadOn = desiredState.constantLoadOn;
                     xSemaphoreGive(dataMutex);
                 }
             }

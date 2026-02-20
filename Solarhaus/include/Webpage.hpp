@@ -240,6 +240,14 @@ const char index_html[] PROGMEM = R"rawliteral(
                         </select>
                     </div>
 
+                    <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items:center;">
+                        <label>Constant Load (Night):</label>
+                        <select id="inpNightConstLoad" class="sim-input">
+                            <option value="0">OFF</option>
+                            <option value="1" selected>ON</option>
+                        </select>
+                    </div>
+
                     <hr style="border:0; border-top:1px solid #eee; margin: 10px 0;">
 
                     <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -475,6 +483,9 @@ const char index_html[] PROGMEM = R"rawliteral(
             // Auflösung für scharfe Darstellung setzen
             canvas.width = rect.width * dpr;
             canvas.height = rect.height * dpr;
+            // NEU: Zwinge das Canvas optisch auf die ursprüngliche Größe zurück
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
             ctx.scale(dpr, dpr);
             
             const width = rect.width;
@@ -584,6 +595,12 @@ const char index_html[] PROGMEM = R"rawliteral(
                 fetch(`/api/sim?active=false`);
                 return;
             }
+
+            // --- NEU: Altes Diagramm löschen ---
+            globalChartData = [];
+            drawSimChart(globalChartData);
+            // ------------------------------------
+
             const elDay = document.getElementById('inpDayTime');
             if (!elDay) return;
 
@@ -592,8 +609,9 @@ const char index_html[] PROGMEM = R"rawliteral(
             const cycles = document.getElementById('inpCycles').value;
             const solar = document.getElementById('inpSolarConfig').value;
             const bat = document.getElementById('inpBatConfig').value;
+            const nightConst = document.getElementById('inpNightConstLoad').value;
 
-            const url = `/api/sim?active=true&dayTime=${dayT}&nightTime=${nightT}&cycles=${cycles}&solar=${solar}&bat=${bat}`;
+            const url = `/api/sim?active=true&dayTime=${dayT}&nightTime=${nightT}&cycles=${cycles}&solar=${solar}&bat=${bat}&nightConst=${nightConst}`;
             fetch(url);
         }
 

@@ -23,7 +23,7 @@ const int MPPT_PWM_FREQ = 20000;
 const int MPPT_PWM_RES = 8;
 
 // SICHERHEITSGRENZEN (Nicht ändern ohne Nachrechnen!)
-const int PWM_LIMIT_MIN_VOLTAGE = 105; // Entspricht ca. 0V Ausgang (Buck aus)
+const int PWM_LIMIT_MIN_VOLTAGE = 100; // Entspricht ca. 0V Ausgang (Buck aus)
 const int PWM_LIMIT_MAX_VOLTAGE = 52;  // Entspricht ca. 6.0V Ausgang (Max für Kondensator)
 
 // Achtung: Invertierte Logik für den Programmierer!
@@ -42,13 +42,13 @@ void Task_MPPT(void* pvParameters) {
     int currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE; // ca. 100
     ledcWrite(MPPT_PWM_CHANNEL, currentDutyCycle);
 
-    // Variablen für MPPT
-    float prevPower = 0.0;
-    int stepSize = 1;      
-    bool directionIncreasesPWM = true; // true = wir erhöhen PWM (Last senken), false = wir senken PWM (Last erhöhen)
-
-    // Warten bis System stabil (2 Sekunden)
-    vTaskDelay(pdMS_TO_TICKS(2000));
+    // --- Variablen für Spannungs-Sweep Algorithmus ---
+    enum SweepState { SWEEP, TRACK };
+    SweepState mpptState = SWEEP;
+    int sweepPwm = PWM_LIMIT_MAX_VOLTAGE; // Start bei maximaler Last (niedrigste Solarspannung)
+    float maxPowerDuringSweep = 0.0;
+    int bestPwm = PWM_LIMIT_MIN_VOLTAGE;  // Sicherer Startwert
+    int stepsSinceMax = 0;                // Zähler, um "etwas weiter zu suchen"
 
     while (1) {
         float currentSolarPower = 0.0;
@@ -104,37 +104,56 @@ void Task_MPPT(void* pvParameters) {
                 currentDutyCycle = manualTarget;
                 
             } else {
-                // *** AUTO MPPT (Perturb & Observe) ***
+                // *** AUTO MPPT (Spannungs-Sweep mit Peak-Tracking) ***
                 
-                // 1. Wenn Solarspannung kritisch tief (< 9V), Last wegnehmen
+                // 1. Wenn Solarspannung kritisch tief (< 3.0V), Last wegnehmen
                 if (currentSolarVoltage < 3.0) {
                     currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE; // Buck fast aus
+                    mpptState = SWEEP;                        // Neustart des Sweeps beim nächsten Mal
+                    sweepPwm = PWM_LIMIT_MAX_VOLTAGE;         // Beginne wieder bei hoher Last
+                    maxPowerDuringSweep = 0.0;
+                    stepsSinceMax = 0;
                 } 
                 else {
-                    // 2. Normaler P&O Algorithmus
-                    float powerDiff = currentSolarPower - prevPower;
+                    if (mpptState == SWEEP) {
+                        currentDutyCycle = sweepPwm;
 
-                    // Nur regeln, wenn Änderung messbar (> 10mW)
-                    if (abs(powerDiff) > 0.5) {
-                        
-                        if (powerDiff > 0) {
-                            // Leistung ist gestiegen -> Weiter so!
-                            // Richtung beibehalten.
-                        } else {
-                            // Leistung gesunken -> Falsche Richtung!
-                            // Richtung umkehren.
-                            directionIncreasesPWM = !directionIncreasesPWM;
+                        // 2. Leistung auswerten und sich den besten Wert "merken"
+                        if (currentSolarPower > maxPowerDuringSweep) {
+                            maxPowerDuringSweep = currentSolarPower;
+                            bestPwm = sweepPwm;
+                            stepsSinceMax = 0; // Zähler zurücksetzen, da neues Maximum gefunden
+                        } else if (maxPowerDuringSweep > 5.0) {
+                            // Leistung sinkt wieder (und wir haben schon ein echtes Maximum > 5mW gesehen)
+                            stepsSinceMax++;
                         }
 
-                        // Schritt ausführen
-                        if (directionIncreasesPWM) {
-                            currentDutyCycle += stepSize; // PWM hoch = Spannung runter (weniger Last)
-                        } else {
-                            currentDutyCycle -= stepSize; // PWM runter = Spannung hoch (mehr Last)
+                        // 3. Spannung der Solarzelle kontinuierlich von "null weg" erhöhen 
+                        // (PWM erhöhen = weniger Last = höhere Solarspannung)
+                        sweepPwm += 1; 
+
+                        // 4. Abbruchkriterium: 
+                        // Entweder wir stoßen ans Limit, oder wir haben "noch etwas weiter gesucht" 
+                        // (z.B. 5 PWM-Schritte) und die Leistung sinkt nur noch ab.
+                        if (sweepPwm > PWM_LIMIT_MIN_VOLTAGE || stepsSinceMax >= 5) {
+                            mpptState = TRACK;
+                            currentDutyCycle = bestPwm; // Zum gemerkten besten Leistungs-Wert springen
+                        }
+                    } 
+                    else if (mpptState == TRACK) {
+                        // 5. Auf dem besten Punkt arbeiten
+                        currentDutyCycle = bestPwm;
+
+                        // Wenn die Leistung am optimalen Punkt plötzlich stark einbricht 
+                        // (z. B. durch eine neue Wolke), starten wir die Suche komplett neu.
+                        if (currentSolarPower < maxPowerDuringSweep * 0.8) {
+                            mpptState = SWEEP;
+                            sweepPwm = PWM_LIMIT_MAX_VOLTAGE;
+                            maxPowerDuringSweep = 0.0;
+                            stepsSinceMax = 0;
                         }
                     }
                 }
-                prevPower = currentSolarPower;
             }
 
             // --- HARTE LIMITS (CLAMPING) ---

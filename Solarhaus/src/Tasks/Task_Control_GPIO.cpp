@@ -134,9 +134,35 @@ void Task_Control_GPIO(void* pvParameters) {
             }
             // ---------------------------------
 
+            // --- NEU: DYNAMISCHER ÜBERSPANNUNGSSCHUTZ FÜR SOLARZELLEN ---
+            float maxCapVoltage = 0;
+            switch(desiredState.batteryActiveCount) {
+                case 1: maxCapVoltage = 2.8; break;
+                case 2: maxCapVoltage = 4; break;
+                case 3: maxCapVoltage = 5.2; break;
+                case 4: maxCapVoltage = 6.1; break;
+                default: maxCapVoltage = 6.1; break;
+            }
+
+            // Wenn Spannung Limit erreicht -> Solarzellen abschalten
+            if (desiredState.busVoltage[1] >= maxCapVoltage && desiredState.solarActiveCount > 0) {
+                desiredState.solarActiveCount = 0; // Lokalen Status updaten (für die Hardware)
+
+                //// WICHTIG: Globalen Status für die Webseite updaten, damit die UI "0 / 4" anzeigt
+                //if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+                //    sysState.solarActiveCount = 0;
+                //    xSemaphoreGive(dataMutex);
+                //}
+                
+                #ifdef DEBUG
+                Serial.println("Capacitance reached for active layout, turning off solar cells");
+                #endif
+            }
+            // -------------------------------------------------------------
+
             // Da der MCP23017 über I2C läuft, brauchen wir den I2C Mutex
             if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-                if(desiredState.busVoltage[1] > 6) {
+                if(desiredState.busVoltage[1] > 6.1) {
                     desiredState.solarActiveCount = 0;
                     #ifdef DEBUG
                     Serial.println("Capacitance reached, turning off solar cells");

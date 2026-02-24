@@ -419,9 +419,30 @@ const char index_html[] PROGMEM = R"rawliteral(
                     document.getElementById('battDataDisplay').innerText = 
                         data.ch2_v.toFixed(2) + "V | " + data.ch2_ma.toFixed(0) + "mA | " + data.ch2_mw.toFixed(0) + "mW";
 
-                    const minVoltage = 1.0; 
-                    const maxVoltage = 6.0; 
-                    let percentage = ((data.bus_voltage - minVoltage) / (maxVoltage - minVoltage)) * 100;
+                    const minVoltage = 1.2; 
+                    let maxVoltage = 6.0; 
+
+                    // Max. Spannung anhand der zugeschalteten Kondensatoren festlegen
+                    switch(data.battery_count) {
+                        case 1: maxVoltage = 2.8; break;
+                        case 2: maxVoltage = 4.0; break;
+                        case 3: maxVoltage = 5.2; break;
+                        case 4: maxVoltage = 6.1; break;
+                        default: maxVoltage = 6.1; break;
+                    }
+
+                    let percentage = 0.0;
+
+                    // Füllstand in % (auf Basis der gespeicherten Energie) berechnen, wenn mindestens 1 Kondensator an ist
+                    if (data.battery_count > 0 && data.bus_voltage > minVoltage) {
+                        let vSquared = data.bus_voltage * data.bus_voltage;
+                        let minVSquared = minVoltage * minVoltage;
+                        let maxVSquared = maxVoltage * maxVoltage;
+                        
+                        percentage = ((vSquared - minVSquared) / (maxVSquared - minVSquared)) * 100;
+                    }
+
+                    // Sicherstellen, dass die Werte zwischen 0 und 100 bleiben
                     if (percentage > 100) percentage = 100;
                     if (percentage < 0) percentage = 0;
 

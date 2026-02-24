@@ -424,9 +424,9 @@ const char index_html[] PROGMEM = R"rawliteral(
 
                     // Max. Spannung anhand der zugeschalteten Kondensatoren festlegen
                     switch(data.battery_count) {
-                        case 1: maxVoltage = 2.8; break;
-                        case 2: maxVoltage = 4.0; break;
-                        case 3: maxVoltage = 5.2; break;
+                        case 1: maxVoltage = 3.17; break;
+                        case 2: maxVoltage = 4.33; break;
+                        case 3: maxVoltage = 5.23; break;
                         case 4: maxVoltage = 6.1; break;
                         default: maxVoltage = 6.1; break;
                     }

@@ -110,9 +110,9 @@ void Task_Neopixel(void* pvParameters) {
         // NEU: Spannungsniveau je nach Anzahl der aktiven Akkus anpassen.
         // Passe die Werte hier an deine tatsächliche Hardware an (z.B. Schritte in 2.7V oder 3.0V)
         switch(activeBatCount) {
-            case 1: maxV = 2.8;  break; // 1 Akku  -> 100% voll bei 3.0V
-            case 2: maxV = 4.0;  break; // 2 Akkus -> 100% voll bei 6.0V
-            case 3: maxV = 5.2;  break; // 3 Akkus -> 100% voll bei 9.0V
+            case 1: maxV = 3.17;  break; // 1 Akku  -> 100% voll bei 3.0V
+            case 2: maxV = 4.33;  break; // 2 Akkus -> 100% voll bei 6.0V
+            case 3: maxV = 5.23;  break; // 3 Akkus -> 100% voll bei 9.0V
             case 4: maxV = 6.1; break; // 4 Akkus -> 100% voll bei 12.0V
             default: maxV = 0; break; // Sicherheitshalber, falls Count 0 ist
         }

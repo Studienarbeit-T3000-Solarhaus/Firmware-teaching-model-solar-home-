@@ -137,9 +137,9 @@ void Task_Control_GPIO(void* pvParameters) {
             // --- NEU: DYNAMISCHER ÜBERSPANNUNGSSCHUTZ FÜR SOLARZELLEN ---
             float maxCapVoltage = 0;
             switch(desiredState.batteryActiveCount) {
-                case 1: maxCapVoltage = 2.8; break;
-                case 2: maxCapVoltage = 4; break;
-                case 3: maxCapVoltage = 5.2; break;
+                case 1: maxCapVoltage = 3.17; break;
+                case 2: maxCapVoltage = 4.33; break;
+                case 3: maxCapVoltage = 5.23; break;
                 case 4: maxCapVoltage = 6.1; break;
                 default: maxCapVoltage = 6.1; break;
             }

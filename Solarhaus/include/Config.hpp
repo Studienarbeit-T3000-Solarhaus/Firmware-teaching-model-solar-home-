@@ -28,11 +28,14 @@ extern LedSegment* allLoads;
 extern LedSegment* constantLoad;
 extern LedSegment* nightLoad;
 extern LedSegment* heavyLoad;
+extern LedSegment* testSegments[2];
 
 // --- Längen und Startpositionen ---
 extern const uint8_t solarModulesLengths[4];
 extern const uint8_t capacitorsLengths[4];
 extern const uint8_t loadLengths[3];
+extern const int testLengths[2];
+
 
 extern const uint8_t allSolarModulesLength;
 extern const uint8_t allCapacitorsLength;
@@ -45,5 +48,6 @@ extern const uint8_t loadStart[3];
 extern const uint8_t allSolarModulesStart;
 extern const uint8_t allCapacitorsStart;
 extern const uint8_t allLoadsStart;
+extern const int* const testIndices[2];
 
 #endif

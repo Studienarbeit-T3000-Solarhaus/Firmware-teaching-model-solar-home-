@@ -9,11 +9,13 @@ extern Adafruit_NeoPixel Neopixels;
 
 void Task_Neopixel(void* pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
+    if (xSemaphoreTake(NeoPixelMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
     Neopixels.begin();
     Neopixels.setBrightness(10);
     Neopixels.clear();
     Neopixels.show();
-
+    xSemaphoreGive(NeoPixelMutex);
+    }
     // Initialize LED Segments
     for(int i=0; i<4; i++) {
         solarModules[i] = new LedSegment(&Neopixels, solarModulesStart[i], solarModulesLengths[i], ColorCurrentflow);
@@ -29,7 +31,7 @@ void Task_Neopixel(void* pvParameters) {
     SystemState currentState;
 
     while(1) {
-       
+        if (xSemaphoreTake(NeoPixelMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         // 1. Daten sicher aus dem Shared Memory holen
         if(xSemaphoreTake(dataMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
             currentState = sysState; 
@@ -225,6 +227,8 @@ void Task_Neopixel(void* pvParameters) {
         heavyLoad->update();
         
         Neopixels.show();
+        xSemaphoreGive(NeoPixelMutex);
+    }
 
         vTaskDelayUntil(&xLastWakeTime, PERIOD_NEOPIXEL_TASK);
     }

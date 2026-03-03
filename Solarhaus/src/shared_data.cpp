@@ -5,6 +5,7 @@
 SemaphoreHandle_t i2cMutex = NULL;
 SemaphoreHandle_t dataMutex = NULL;
 SemaphoreHandle_t logMutex = NULL; // <--- NEU
+SemaphoreHandle_t NeoPixelMutex = NULL; 
 
 // Log Vektor
 std::vector<SimDataPoint> simulationLog; // <--- NEU

@@ -33,12 +33,37 @@ void Task_DeepSleep(void* pvParameters) {
                     vTaskDelay(pdMS_TO_TICKS(100));
 
                     #ifdef DEBUG
+                    Serial.println("Starte Shutdown-Animation...");
+                    #endif
+
+                    // --- NEU: Herunterfahr-Animation (Rotes Faden) ---
+                    // Schleife reduziert die Helligkeit der roten Farbe in 5er-Schritten von 255 auf 0
+                    for (int brightness = 255; brightness >= 0; brightness -= 5) {
+                        // Alle Pixel auf den aktuellen Rot-Wert setzen
+                        for (int i = 0; i < Neopixels.numPixels(); i++) {
+                            // Format: R, G, B. Nur Rot bekommt den Helligkeitswert.
+                            Neopixels.setPixelColor(i, Neopixels.Color(brightness, 0, 0)); 
+                        }
+                        Neopixels.show();
+                        
+                        // Geschwindigkeit des Ausfadens (20ms pro Schritt = ca. 1 Sekunde für den kompletten Fade)
+                        vTaskDelay(pdMS_TO_TICKS(20)); 
+                    }
+                    
+                    // Zur Sicherheit nochmal komplett ausschalten
+                    Neopixels.clear();
+                    Neopixels.show();
+                    // --------------------------------------------------
+
+                    #ifdef DEBUG
                     Serial.println("Gehe in Deep Sleep...");
                     #endif
 
                     // Pins D6 und D7 auf LOW setzen, bevor der Deep Sleep beginnt
                     digitalWrite(ENABLE_BATTERY_PIN, LOW);
                     digitalWrite(ENABLE_3V3_PIN, LOW);
+                    
+                    delay(100); 
 
                     // Konfiguriere Wake-up für D0 (GPIO 2) auf LOW
                     esp_deep_sleep_enable_gpio_wakeup(BIT(WAKEUP_PIN), ESP_GPIO_WAKEUP_GPIO_LOW);

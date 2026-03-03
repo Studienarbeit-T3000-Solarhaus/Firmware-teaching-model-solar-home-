@@ -47,9 +47,9 @@
 #define CAPACITOR_2 5
 #define CAPACITOR_3 6
 #define CAPACITOR_4 7
-#define CONSTANT_LOAD 8
+#define HEAVY_LOAD 8 
 #define NIGHT_LOAD 9
-#define HEAVY_LOAD 10
+#define CONSTANT_LOAD 10
 
 // Definition of the pins for Neopixel LED strip
 #define NEOPIXEL_PIN 4

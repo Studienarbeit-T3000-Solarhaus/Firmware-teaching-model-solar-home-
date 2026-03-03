@@ -8,6 +8,8 @@
 // Mutexes
 extern SemaphoreHandle_t i2cMutex;
 extern SemaphoreHandle_t dataMutex;
+extern SemaphoreHandle_t logMutex; 
+extern SemaphoreHandle_t NeoPixelMutex;
 
 // Task Priorities
 #define PRIORITY_STARTUP_TASK 5

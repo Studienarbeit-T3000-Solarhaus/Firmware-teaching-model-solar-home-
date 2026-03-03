@@ -28,6 +28,14 @@ void Task_Neopixel(void* pvParameters) {
     nightLoad = new LedSegment(&Neopixels, loadStart[1], loadLengths[1], ColorCurrentflow);
     heavyLoad = new LedSegment(&Neopixels, loadStart[2], loadLengths[2], ColorCurrentflow);
 
+    // Testsegment 0: Cyan, 100ms Geschwindigkeit, vorwärts
+    testSegments[0] = new LedSegment(&Neopixels, testIndices[0], testLengths[0], Neopixels.Color(0, 255, 255));
+    testSegments[0]->setFlow(100, false);
+
+    // Testsegment 1: Magenta, 100ms Geschwindigkeit, rückwärts (für einen coolen gegenläufigen Effekt)
+    testSegments[1] = new LedSegment(&Neopixels, testIndices[1], testLengths[1], Neopixels.Color(255, 0, 255));
+    testSegments[1]->setFlow(100, false);
+
     SystemState currentState;
 
     while(1) {
@@ -137,15 +145,8 @@ void Task_Neopixel(void* pvParameters) {
             capacitors[i]->setFlow(0, false);
 
             if (i < activeBatCount) {
-                int len = capacitorsLengths[i];
-                int start = capacitorsStart[i];
-                int ledsOn = (int)(percentage * len);
-                if (percentage > 0.01 && ledsOn == 0) ledsOn = 1;
-
-                for(int j=0; j<len; j++) {
-                    if (j < ledsOn) Neopixels.setPixelColor(start + j, batColor);
-                    else Neopixels.setPixelColor(start + j, 0);
-                }
+                // Wir übergeben jetzt einfach direkt den Prozentwert!
+                capacitors[i]->fill(percentage, batColor);
             } else {
                 capacitors[i]->clear();
             }
@@ -225,6 +226,8 @@ void Task_Neopixel(void* pvParameters) {
         constantLoad->update();
         nightLoad->update();
         heavyLoad->update();
+
+        for(int i=0; i<2; i++) testSegments[i]->update();
         
         Neopixels.show();
         xSemaphoreGive(NeoPixelMutex);

@@ -17,8 +17,7 @@ void Task_DeepSleep(void* pvParameters) {
                 buttonPressTime = millis();
                 isButtonPressed = true;
             } else {
-                // Button wird gehalten: Prüfen, ob 3 Sekunden (3000 ms) vergangen sind
-                // Button wird gehalten: Prüfen, ob 3 Sekunden (3000 ms) vergangen sind
+                // Prüfen, ob die Haltezeit von 3 Sekunden (3000 ms) erreicht ist
                 if (millis() - buttonPressTime >= 3000) {
                     #ifdef DEBUG
                     Serial.println("Button für 3 Sekunden gedrückt. Warte auf Loslassen...");
@@ -66,7 +65,7 @@ void Task_DeepSleep(void* pvParameters) {
                     delay(100); 
                     xSemaphoreGive(NeoPixelMutex);
                     }
-                    // Konfiguriere Wake-up für D0 (GPIO 2) auf LOW
+                    // Konfiguriere Wake-up für WAKEUP_PIN auf LOW
                     esp_deep_sleep_enable_gpio_wakeup(BIT(WAKEUP_PIN), ESP_GPIO_WAKEUP_GPIO_LOW);
                     
                     // Gehe in den Deep Sleep

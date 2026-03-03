@@ -64,7 +64,7 @@ void Task_DeepSleep(void* pvParameters) {
                     
                     delay(100); 
 
-                    // Konfiguriere Wake-up für D0 (GPIO 2) auf LOW
+                    // Konfiguriere Wake-up für WAKEUP_PIN auf LOW
                     esp_deep_sleep_enable_gpio_wakeup(BIT(WAKEUP_PIN), ESP_GPIO_WAKEUP_GPIO_LOW);
                     
                     // Gehe in den Deep Sleep

@@ -35,7 +35,7 @@ void Task_DeepSleep(void* pvParameters) {
                     #ifdef DEBUG
                     Serial.println("Starte Shutdown-Animation...");
                     #endif
-
+                    if (xSemaphoreTake(NeoPixelMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
                     // --- NEU: Herunterfahr-Animation (Rotes Faden) ---
                     // Schleife reduziert die Helligkeit der roten Farbe in 5er-Schritten von 255 auf 0
                     for (int brightness = 255; brightness >= 0; brightness -= 5) {
@@ -54,7 +54,7 @@ void Task_DeepSleep(void* pvParameters) {
                     Neopixels.clear();
                     Neopixels.show();
                     // --------------------------------------------------
-
+                    
                     #ifdef DEBUG
                     Serial.println("Gehe in Deep Sleep...");
                     #endif
@@ -64,7 +64,8 @@ void Task_DeepSleep(void* pvParameters) {
                     digitalWrite(ENABLE_3V3_PIN, LOW);
                     
                     delay(100); 
-
+                    xSemaphoreGive(NeoPixelMutex);
+                    }
                     // Konfiguriere Wake-up für D0 (GPIO 2) auf LOW
                     esp_deep_sleep_enable_gpio_wakeup(BIT(WAKEUP_PIN), ESP_GPIO_WAKEUP_GPIO_LOW);
                     
@@ -78,6 +79,6 @@ void Task_DeepSleep(void* pvParameters) {
         }
 
         // Kurzes Delay zum Entprellen und um CPU-Ressourcen freizugeben
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(PERIOD_DEEPSLEEP_TASK));
     }
 }

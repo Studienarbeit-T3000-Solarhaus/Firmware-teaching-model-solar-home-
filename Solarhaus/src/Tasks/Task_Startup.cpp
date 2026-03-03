@@ -61,15 +61,14 @@ void Task_Startup(void* pvParameters) {
     digitalWrite(NEOPIXEL_PIN, LOW);
 
     // Wakeup Pin 
-    pinMode(WAKEUP_PIN, OUTPUT);
-    digitalWrite(WAKEUP_PIN, LOW);
+    pinMode(WAKEUP_PIN, INPUT_PULLUP); 
 
     // Enable Pins
     pinMode(ENABLE_3V3_PIN, OUTPUT);
-    digitalWrite(ENABLE_3V3_PIN, LOW);
+    digitalWrite(ENABLE_3V3_PIN, HIGH);
 
     pinMode(ENABLE_BATTERY_PIN, OUTPUT);
-    digitalWrite(ENABLE_BATTERY_PIN, LOW);
+    digitalWrite(ENABLE_BATTERY_PIN, HIGH);
 
     // MPPT PWM Pin
     pinMode(MPPT_PWM_PIN, OUTPUT);
@@ -109,6 +108,7 @@ void Task_Startup(void* pvParameters) {
     xTaskCreate(Task_Neopixel, "Neopixel Task", STACK_SIZE_NEOPIXEL_TASK, NULL, PRIORITY_NEOPIXEL_TASK, &TaskHandle_Neopixel);
     xTaskCreate(Task_Webserver, "Webserver Task", STACK_SIZE_WEBSERVER_TASK, NULL, PRIORITY_WEBSERVER_TASK, &TaskHandle_Webserver);
     xTaskCreate(Task_MPPT, "MPPT Task", STACK_SIZE_MPPT_TASK, NULL, PRIORITY_MPPT_TASK, &TaskHandle_MPPT);
+    xTaskCreate(Task_DeepSleep, "Deep Sleep Task", STACK_SIZE_DEEPSLEEP_TASK, NULL, PRIORITY_DEEPSLEEP_TASK, &TaskHandle_DeepSleep);
 
     #ifdef DEBUG
     xTaskCreate(Task_Debug, "Debug Task", STACK_SIZE_DEBUG_TASK, NULL, PRIORITY_DEBUG_TASK, &TaskHandle_Debug);

@@ -19,3 +19,4 @@ TaskHandle_t TaskHandle_Control_GPIO = NULL;
 TaskHandle_t TaskHandle_Neopixel = NULL;
 TaskHandle_t TaskHandle_Debug = NULL;
 TaskHandle_t TaskHandle_MPPT = NULL;
+TaskHandle_t TaskHandle_DeepSleep = NULL; 

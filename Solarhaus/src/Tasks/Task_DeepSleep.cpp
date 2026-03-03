@@ -17,7 +17,7 @@ void Task_DeepSleep(void* pvParameters) {
                 buttonPressTime = millis();
                 isButtonPressed = true;
             } else {
-                // Button wird gehalten: Prüfen, ob 3 Sekunden (3000 ms) vergangen sind
+                // Prüfen, ob die Haltezeit von 3 Sekunden (3000 ms) erreicht ist
                 if (millis() - buttonPressTime >= 3000) {
                     #ifdef DEBUG
                     Serial.println("Button für 3 Sekunden gedrückt. Warte auf Loslassen...");

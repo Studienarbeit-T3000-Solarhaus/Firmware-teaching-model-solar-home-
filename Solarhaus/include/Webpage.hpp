@@ -119,16 +119,15 @@ const char index_html[] PROGMEM = R"rawliteral(
                     <span class="live-data" id="solarDataDisplay">0.0V | 0mA | 0mW</span>
                 </div>
                 <div class="control-row" id="solarControls">
-    <div style="display:flex; flex-direction:column; gap:5px;">
-        <button id="btnSolarInc" class="btn btn-green" onclick="control('solar', 'inc')">+</button>
-        <button class="btn btn-red" onclick="control('solar', 'dec')">-</button>
-    </div>
-    <div class="status-badge" id="solarStatus">0 / 4 Active</div>
-    <div style="display:flex; flex-direction:column; gap:5px;">
-        <button id="btnSolarAllOn" class="btn btn-green btn-wide" onclick="control('solar', 'all_on')">All ON</button>
-        <button class="btn btn-red btn-wide" onclick="control('solar', 'all_off')">All OFF</button>
-    </div>
-</div>
+                    <div style="display:flex; flex-direction:column; gap:5px;">
+                        <button id="btnSolarInc" class="btn btn-green" onclick="control('solar', 'inc')">+</button>
+                        <button class="btn btn-red" onclick="control('solar', 'dec')">-</button>
+                    </div>
+                    <div class="status-badge" id="solarStatus">0 / 4 Active</div>
+                    <div style="display:flex; flex-direction:column; gap:5px;">
+                        <button id="btnSolarAllOn" class="btn btn-green btn-wide" onclick="control('solar', 'all_on')">All ON</button>
+                        <button class="btn btn-red btn-wide" onclick="control('solar', 'all_off')">All OFF</button>
+                    </div>
                 </div>
             </div>
 
@@ -421,24 +420,41 @@ const char index_html[] PROGMEM = R"rawliteral(
                         data.ch2_v.toFixed(2) + "V | " + data.ch2_ma.toFixed(0) + "mA | " + data.ch2_mw.toFixed(0) + "mW";
 
 
-                    // --- NEU: Solar-Buttons sperren, wenn keine Batterie aktiv ist ---
+                    // --- NEU: Solar- UND Last-Buttons sperren, wenn keine Batterie aktiv ist ---
                     const btnSolarInc = document.getElementById('btnSolarInc');
                     const btnSolarAllOn = document.getElementById('btnSolarAllOn');
+                    const btnConst = document.getElementById('btnConst');
+                    const btnNight = document.getElementById('btnNight');
+                    const btnHeavy = document.getElementById('btnHeavy');
                     
                     if (data.battery_count === 0 && !simActiveGlobal) {
-                        // Deaktivieren und ausgrauen
+                        // Alles deaktivieren und ausgrauen
                         btnSolarInc.style.opacity = '0.3';
                         btnSolarInc.style.pointerEvents = 'none';
                         btnSolarAllOn.style.opacity = '0.3';
                         btnSolarAllOn.style.pointerEvents = 'none';
+                        
+                        btnConst.style.opacity = '0.3';
+                        btnConst.style.pointerEvents = 'none';
+                        btnNight.style.opacity = '0.3';
+                        btnNight.style.pointerEvents = 'none';
+                        btnHeavy.style.opacity = '0.3';
+                        btnHeavy.style.pointerEvents = 'none';
                     } else if (!simActiveGlobal) {
                         // Wieder aktivieren (wenn nicht in Simulation)
                         btnSolarInc.style.opacity = '1';
                         btnSolarInc.style.pointerEvents = 'auto';
                         btnSolarAllOn.style.opacity = '1';
                         btnSolarAllOn.style.pointerEvents = 'auto';
+                        
+                        btnConst.style.opacity = '1';
+                        btnConst.style.pointerEvents = 'auto';
+                        btnNight.style.opacity = '1';
+                        btnNight.style.pointerEvents = 'auto';
+                        btnHeavy.style.opacity = '1';
+                        btnHeavy.style.pointerEvents = 'auto';
                     }
-                    // -----------------------------------------------------------------
+                    // -----------------------------------------------------------------------------
 
                     const minVoltage = 1.2; 
                     let maxVoltage = 6.0; 

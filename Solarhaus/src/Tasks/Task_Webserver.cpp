@@ -129,9 +129,12 @@ void Task_Webserver(void* pvParameters) {
                         newCount = 0; 
                     }
                 } else if (type == "battery") {
-                    // Wenn die letzte Batterie ausgeschaltet wird, schalte auch alle Solarzellen aus
-                    if (newCount == 0 && sysState.solarActiveCount > 0) {
+                    // Wenn die letzte Batterie ausgeschaltet wird, schalte auch alle Solarzellen und Lasten aus
+                    if (newCount == 0) {
                         sysState.solarActiveCount = 0;
+                        sysState.constantLoadOn = false;
+                        sysState.nightLoadOn = false;
+                        sysState.heavyLoadOn = false;
                     }
                 }
                 // ------------------------------------------------------------
@@ -154,13 +157,23 @@ void Task_Webserver(void* pvParameters) {
                     request->send(403, "text/plain", "Simulation Active");
                     return;
                 }
-                if (load == "const") {
-                    sysState.constantLoadOn = !sysState.constantLoadOn;
-                } else if (load == "night") { 
-                    sysState.nightLoadOn = !sysState.nightLoadOn;
-                } else if (load == "heavy") { 
-                    sysState.heavyLoadOn = !sysState.heavyLoadOn;
+                // --- NEU: Verhindere das Einschalten, wenn keine Batterie da ist ---
+                if (sysState.batteryActiveCount == 0) {
+                    // Zur Sicherheit alles auf false zwingen
+                    sysState.constantLoadOn = false;
+                    sysState.nightLoadOn = false;
+                    sysState.heavyLoadOn = false;
+                } else {
+                    // Normales Umschalten erlauben
+                    if (load == "const") {
+                        sysState.constantLoadOn = !sysState.constantLoadOn;
+                    } else if (load == "night") { 
+                        sysState.nightLoadOn = !sysState.nightLoadOn;
+                    } else if (load == "heavy") { 
+                        sysState.heavyLoadOn = !sysState.heavyLoadOn;
+                    }
                 }
+                // -------------------------------------------------------------------
                 xSemaphoreGive(dataMutex);
             }
         }

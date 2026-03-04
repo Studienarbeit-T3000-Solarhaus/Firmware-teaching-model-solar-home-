@@ -122,6 +122,20 @@ void Task_Webserver(void* pvParameters) {
                 if (newCount > 4) newCount = 4;
                 if (newCount < 0) newCount = 0;
 
+                // --- NEUE LOGIK: Abhängigkeit zwischen Solar und Batterie ---
+                if (type == "solar") {
+                    // Verhindere das Einschalten von Solar, wenn keine Batterie aktiv ist
+                    if (sysState.batteryActiveCount == 0 && newCount > 0) {
+                        newCount = 0; 
+                    }
+                } else if (type == "battery") {
+                    // Wenn die letzte Batterie ausgeschaltet wird, schalte auch alle Solarzellen aus
+                    if (newCount == 0 && sysState.solarActiveCount > 0) {
+                        sysState.solarActiveCount = 0;
+                    }
+                }
+                // ------------------------------------------------------------
+
                 *countPtr = newCount;
                 xSemaphoreGive(dataMutex);
             }

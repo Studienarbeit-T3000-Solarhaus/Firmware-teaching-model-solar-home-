@@ -119,15 +119,16 @@ const char index_html[] PROGMEM = R"rawliteral(
                     <span class="live-data" id="solarDataDisplay">0.0V | 0mA | 0mW</span>
                 </div>
                 <div class="control-row" id="solarControls">
-                    <div style="display:flex; flex-direction:column; gap:5px;">
-                        <button class="btn btn-green" onclick="control('solar', 'inc')">+</button>
-                        <button class="btn btn-red" onclick="control('solar', 'dec')">-</button>
-                    </div>
-                    <div class="status-badge" id="solarStatus">0 / 4 Active</div>
-                    <div style="display:flex; flex-direction:column; gap:5px;">
-                        <button class="btn btn-green btn-wide" onclick="control('solar', 'all_on')">All ON</button>
-                        <button class="btn btn-red btn-wide" onclick="control('solar', 'all_off')">All OFF</button>
-                    </div>
+    <div style="display:flex; flex-direction:column; gap:5px;">
+        <button id="btnSolarInc" class="btn btn-green" onclick="control('solar', 'inc')">+</button>
+        <button class="btn btn-red" onclick="control('solar', 'dec')">-</button>
+    </div>
+    <div class="status-badge" id="solarStatus">0 / 4 Active</div>
+    <div style="display:flex; flex-direction:column; gap:5px;">
+        <button id="btnSolarAllOn" class="btn btn-green btn-wide" onclick="control('solar', 'all_on')">All ON</button>
+        <button class="btn btn-red btn-wide" onclick="control('solar', 'all_off')">All OFF</button>
+    </div>
+</div>
                 </div>
             </div>
 
@@ -418,6 +419,26 @@ const char index_html[] PROGMEM = R"rawliteral(
                     document.getElementById('batteryStatus').innerText = data.battery_count + " / 4";
                     document.getElementById('battDataDisplay').innerText = 
                         data.ch2_v.toFixed(2) + "V | " + data.ch2_ma.toFixed(0) + "mA | " + data.ch2_mw.toFixed(0) + "mW";
+
+
+                    // --- NEU: Solar-Buttons sperren, wenn keine Batterie aktiv ist ---
+                    const btnSolarInc = document.getElementById('btnSolarInc');
+                    const btnSolarAllOn = document.getElementById('btnSolarAllOn');
+                    
+                    if (data.battery_count === 0 && !simActiveGlobal) {
+                        // Deaktivieren und ausgrauen
+                        btnSolarInc.style.opacity = '0.3';
+                        btnSolarInc.style.pointerEvents = 'none';
+                        btnSolarAllOn.style.opacity = '0.3';
+                        btnSolarAllOn.style.pointerEvents = 'none';
+                    } else if (!simActiveGlobal) {
+                        // Wieder aktivieren (wenn nicht in Simulation)
+                        btnSolarInc.style.opacity = '1';
+                        btnSolarInc.style.pointerEvents = 'auto';
+                        btnSolarAllOn.style.opacity = '1';
+                        btnSolarAllOn.style.pointerEvents = 'auto';
+                    }
+                    // -----------------------------------------------------------------
 
                     const minVoltage = 1.2; 
                     let maxVoltage = 6.0; 

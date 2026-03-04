@@ -107,7 +107,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div id="simInfoBanner" class="sim-banner">
                 Automatic Simulation Active<br>
                 Current Phase: <strong id="simPhaseDisplay">DAY</strong>
-                
+                <div id="simClockDisplay" style="font-size: 28px; font-weight: bold; margin: 10px 0; font-family: monospace;">06:00</div>
                 <div style="width: 100%; background-color: rgba(0,0,0,0.1); height: 8px; border-radius: 4px; margin-top: 8px; overflow: hidden;">
                   <div id="simProgressBar" style="width: 0%; height: 100%; background-color: #4CAF50; transition: width 0.3s linear;"></div>
                 </div>
@@ -240,15 +240,50 @@ const char index_html[] PROGMEM = R"rawliteral(
                         </select>
                     </div>
 
-                    <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items:center;">
-                        <label>Constant Load (Night):</label>
-                        <select id="inpNightConstLoad" class="sim-input">
-                            <option value="0">OFF</option>
-                            <option value="1" selected>ON</option>
-                        </select>
+                    <hr style="border:0; border-top:1px solid #eee; margin: 15px 0;">
+                    <div style="margin-bottom:10px; color:#0077BB;"><strong>Consumer Time Schedule (Fictional Time):</strong></div>
+
+                    <div style="background:#f9f9f9; padding:10px; border-radius:8px; margin-bottom:10px; border:1px solid #eee;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                            <label><strong>Constant Load:</strong></label>
+                            <select id="simConstActive" class="sim-input" style="width:80px;">
+                                <option value="false" selected>OFF</option>
+                                <option value="true">AUTO</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <label style="font-size:12px;">ON:</label> <input type="time" id="simConstStart" value="18:00" class="sim-input">
+                            <label style="font-size:12px;">OFF:</label> <input type="time" id="simConstEnd" value="06:00" class="sim-input">
+                        </div>
                     </div>
 
-                    <hr style="border:0; border-top:1px solid #eee; margin: 10px 0;">
+                    <div style="background:#f9f9f9; padding:10px; border-radius:8px; margin-bottom:10px; border:1px solid #eee;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                            <label><strong>Night Load:</strong></label>
+                            <select id="simNightActive" class="sim-input" style="width:80px;">
+                                <option value="false">OFF</option>
+                                <option value="true" selected>AUTO</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <label style="font-size:12px;">ON:</label> <input type="time" id="simNightStart" value="18:00" class="sim-input">
+                            <label style="font-size:12px;">OFF:</label> <input type="time" id="simNightEnd" value="06:00" class="sim-input">
+                        </div>
+                    </div>
+
+                    <div style="background:#f9f9f9; padding:10px; border-radius:8px; margin-bottom:10px; border:1px solid #eee;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                            <label><strong>Heavy Load:</strong></label>
+                            <select id="simHeavyActive" class="sim-input" style="width:80px;">
+                                <option value="false">OFF</option>
+                                <option value="true" selected>AUTO</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <label style="font-size:12px;">ON:</label> <input type="time" id="simHeavyStart" value="16:00" class="sim-input">
+                            <label style="font-size:12px;">OFF:</label> <input type="time" id="simHeavyEnd" value="20:00" class="sim-input">
+                        </div>
+                    </div>
 
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <label style="font-weight:bold;">Total Cycles:</label>
@@ -393,6 +428,14 @@ const char index_html[] PROGMEM = R"rawliteral(
                             bar.style.width = pct + '%';
                             if (isDay) bar.style.backgroundColor = '#FFC107'; 
                             else bar.style.backgroundColor = '#3F51B5';
+                        }
+
+                        // NEU: Live-Uhr aktualisieren
+                        if (data.sim_hour !== undefined) {
+                            let h = data.sim_hour.toString().padStart(2, '0');
+                            let m = data.sim_minute.toString().padStart(2, '0');
+                            const clockEl = document.getElementById('simClockDisplay');
+                            if (clockEl) clockEl.innerText = `${h}:${m}`;
                         }
                         
                         let curC = data.cur_cycle !== undefined ? data.cur_cycle : "?";
@@ -659,17 +702,27 @@ const char index_html[] PROGMEM = R"rawliteral(
             drawSimChart(globalChartData);
             // ------------------------------------
 
-            const elDay = document.getElementById('inpDayTime');
-            if (!elDay) return;
-
-            const dayT = elDay.value;
+            // HIER IST DIE KORRIGIERTE ZEILE:
+            const dayT = document.getElementById('inpDayTime').value;
             const nightT = document.getElementById('inpNightTime').value;
             const cycles = document.getElementById('inpCycles').value;
             const solar = document.getElementById('inpSolarConfig').value;
             const bat = document.getElementById('inpBatConfig').value;
-            const nightConst = document.getElementById('inpNightConstLoad').value;
 
-            const url = `/api/sim?active=true&dayTime=${dayT}&nightTime=${nightT}&cycles=${cycles}&solar=${solar}&bat=${bat}&nightConst=${nightConst}`;
+            // Variablen auslesen (Um Platz in der URL zu sparen, kurze Namen)
+            const cA = document.getElementById('simConstActive').value;
+            const cS = document.getElementById('simConstStart').value;
+            const cE = document.getElementById('simConstEnd').value;
+            
+            const nA = document.getElementById('simNightActive').value;
+            const nS = document.getElementById('simNightStart').value;
+            const nE = document.getElementById('simNightEnd').value;
+            
+            const hA = document.getElementById('simHeavyActive').value;
+            const hS = document.getElementById('simHeavyStart').value;
+            const hE = document.getElementById('simHeavyEnd').value;
+
+            const url = `/api/sim?active=true&dayTime=${dayT}&nightTime=${nightT}&cycles=${cycles}&solar=${solar}&bat=${bat}&cA=${cA}&cS=${cS}&cE=${cE}&nA=${nA}&nS=${nS}&nE=${nE}&hA=${hA}&hS=${hS}&hE=${hE}`;
             fetch(url);
         }
 

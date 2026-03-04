@@ -68,7 +68,18 @@ struct SystemState {
     // --- Gespeicherte Start-Konfiguration ---
     int configSolarCount;   // User-Einstellung für Solar
     int configBatteryCount; // User-Einstellung für Kondensatoren (NEU)
-    bool configNightConstantLoad;
+    // Zeitpläne für fiktive Simulation (AUTO-Modus)
+    bool schedConstActive;
+    int schedConstStartH, schedConstStartM;
+    int schedConstEndH, schedConstEndM;
+
+    bool schedNightActive;
+    int schedNightStartH, schedNightStartM;
+    int schedNightEndH, schedNightEndM;
+
+    bool schedHeavyActive;
+    int schedHeavyStartH, schedHeavyStartM;
+    int schedHeavyEndH, schedHeavyEndM;
     // --- NEU: Zyklen ---
     int targetCycles;       // Wie viele Zyklen sollen laufen?
     int currentCycle;       // Wo sind wir gerade?

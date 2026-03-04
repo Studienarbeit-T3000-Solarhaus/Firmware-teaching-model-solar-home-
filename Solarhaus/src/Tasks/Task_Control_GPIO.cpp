@@ -26,7 +26,44 @@ void Task_Control_GPIO(void* pvParameters) {
             unsigned long currentMillis = millis();
             unsigned long durationMillis = (desiredState.isDayPhase ? desiredState.dayDurationSec : desiredState.nightDurationSec) * 1000UL;
 
+            // =========================================================
+            // NEU: SCHEDULER (Fiktive Zeit berechnen und Lasten schalten)
+            // =========================================================
+            float progress = 0.0;
+            if (durationMillis > 0) {
+                progress = (float)(currentMillis - desiredState.simTimerStart) / (float)durationMillis;
+                if (progress > 1.0) progress = 1.0;
+            }
 
+            float simTimeFloat = 0;
+            if (desiredState.isDayPhase) simTimeFloat = 6.0 + (progress * 12.0);
+            else {
+                simTimeFloat = 18.0 + (progress * 12.0);
+                if (simTimeFloat >= 24.0) simTimeFloat -= 24.0;
+            }
+            int currentMinsTotal = (int)simTimeFloat * 60 + (int)((simTimeFloat - (int)simTimeFloat) * 60);
+
+            // Helfer-Funktion zum Prüfen des Zeitfensters
+            auto isTimeActive = [](int currentMins, int startH, int startM, int endH, int endM) {
+                int startMins = startH * 60 + startM;
+                int endMins = endH * 60 + endM;
+                if (startMins <= endMins) return (currentMins >= startMins && currentMins < endMins); 
+                else return (currentMins >= startMins || currentMins < endMins); 
+            };
+
+            // Zustand lokal berechnen
+            desiredState.constantLoadOn = desiredState.schedConstActive ? isTimeActive(currentMinsTotal, desiredState.schedConstStartH, desiredState.schedConstStartM, desiredState.schedConstEndH, desiredState.schedConstEndM) : false;
+            desiredState.nightLoadOn    = desiredState.schedNightActive ? isTimeActive(currentMinsTotal, desiredState.schedNightStartH, desiredState.schedNightStartM, desiredState.schedNightEndH, desiredState.schedNightEndM) : false;
+            desiredState.heavyLoadOn    = desiredState.schedHeavyActive ? isTimeActive(currentMinsTotal, desiredState.schedHeavyStartH, desiredState.schedHeavyStartM, desiredState.schedHeavyEndH, desiredState.schedHeavyEndM) : false;
+
+            // Zustand sofort in den globalen Speicher übernehmen, damit das Webinterface es live sieht
+            if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+                sysState.constantLoadOn = desiredState.constantLoadOn;
+                sysState.nightLoadOn    = desiredState.nightLoadOn;
+                sysState.heavyLoadOn    = desiredState.heavyLoadOn;
+                xSemaphoreGive(dataMutex);
+            }
+            // =========================================================
             // --- NEU: LOGGING (Jede Sekunde) ---
             if (currentMillis - lastLogTime >= 1000) {
                 lastLogTime = currentMillis;
@@ -65,8 +102,7 @@ void Task_Control_GPIO(void* pvParameters) {
                     // Nacht-Zustand: Solar aus, Licht an (optional, hier lassen wir User-Licht an, aber Solar MUSS aus)
                     desiredState.solarActiveCount = 0;
                     desiredState.batteryActiveCount = desiredState.configBatteryCount;
-                    // <--- NEU: Last entsprechend der Einstellung für die Nacht einschalten
-                    desiredState.constantLoadOn = desiredState.configNightConstantLoad;
+                    
                     
                 } else {
                     // Nacht ist vorbei -> Zyklus zu Ende oder neuer Tag?
@@ -87,7 +123,7 @@ void Task_Control_GPIO(void* pvParameters) {
                         desiredState.solarActiveCount = desiredState.configSolarCount;
                         desiredState.batteryActiveCount = desiredState.configBatteryCount;
                         // <--- NEU: Am Tag die Constant Load wieder ausschalten
-                        desiredState.constantLoadOn = false;
+                        
                     }
                 }
 

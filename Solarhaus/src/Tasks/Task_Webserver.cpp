@@ -63,7 +63,11 @@ void Task_Webserver(void* pvParameters) {
         }
 
         // --- NEU: Fortschritt berechnen ---
+        // --- NEU: Fortschritt und fiktive Uhrzeit berechnen ---
         float progress = 0.0;
+        int simHour = 0;
+        int simMinute = 0;
+
         if (localSystemState.isSimActive) {
             unsigned long currentMillis = millis();
             unsigned long durationMillis = (localSystemState.isDayPhase ? localSystemState.dayDurationSec : localSystemState.nightDurationSec) * 1000UL;
@@ -73,6 +77,17 @@ void Task_Webserver(void* pvParameters) {
                 progress = (float)elapsed / (float)durationMillis;
                 if (progress > 1.0) progress = 1.0;
             }
+
+            // Fiktive 24h-Zeit berechnen
+            float simTimeFloat = 0;
+            if (localSystemState.isDayPhase) {
+                simTimeFloat = 6.0 + (progress * 12.0); // Tag: 06:00 bis 18:00
+            } else {
+                simTimeFloat = 18.0 + (progress * 12.0); // Nacht: 18:00 bis 06:00
+                if (simTimeFloat >= 24.0) simTimeFloat -= 24.0; // Über Mitternacht
+            }
+            simHour = (int)simTimeFloat;
+            simMinute = (int)((simTimeFloat - simHour) * 60);
         }
 
         // JSON zusammenbauen
@@ -85,6 +100,8 @@ void Task_Webserver(void* pvParameters) {
         json += "\"cur_cycle\":" + String(localSystemState.currentCycle) + ",";
         json += "\"max_cycles\":" + String(localSystemState.targetCycles)+ ","; 
         json += "\"sim_progress\":" + String(progress, 3) + ",";
+        json += "\"sim_hour\":" + String(simHour) + ",";
+        json += "\"sim_minute\":" + String(simMinute) + ",";
         // Status der Verbraucher
         json += "\"const_on\":" + String(constLoadOn ? "true" : "false") + ",";
         json += "\"night_on\":" + String(nightLoadOn ? "true" : "false") + ",";
@@ -198,9 +215,21 @@ void Task_Webserver(void* pvParameters) {
                     if(request->hasParam("solar")) sysState.configSolarCount = request->getParam("solar")->value().toInt();
                     if(request->hasParam("bat")) sysState.configBatteryCount = request->getParam("bat")->value().toInt();
                     // -------------------------------------------------------
-                    // NEU: Parameter für Constant Load auslesen
-                    if(request->hasParam("nightConst")) sysState.configNightConstantLoad = (request->getParam("nightConst")->value() == "1");
-                    // -------------------------------------------------------
+                    // --- NEU: Zeitpläne auslesen ---
+                    // Constant Load
+                    if(request->hasParam("cA")) sysState.schedConstActive = (request->getParam("cA")->value() == "true");
+                    if(request->hasParam("cS")) { String s = request->getParam("cS")->value(); sysState.schedConstStartH = s.substring(0, 2).toInt(); sysState.schedConstStartM = s.substring(3, 5).toInt(); }
+                    if(request->hasParam("cE")) { String s = request->getParam("cE")->value(); sysState.schedConstEndH = s.substring(0, 2).toInt(); sysState.schedConstEndM = s.substring(3, 5).toInt(); }
+                    
+                    // Night Load
+                    if(request->hasParam("nA")) sysState.schedNightActive = (request->getParam("nA")->value() == "true");
+                    if(request->hasParam("nS")) { String s = request->getParam("nS")->value(); sysState.schedNightStartH = s.substring(0, 2).toInt(); sysState.schedNightStartM = s.substring(3, 5).toInt(); }
+                    if(request->hasParam("nE")) { String s = request->getParam("nE")->value(); sysState.schedNightEndH = s.substring(0, 2).toInt(); sysState.schedNightEndM = s.substring(3, 5).toInt(); }
+                    
+                    // Heavy Load
+                    if(request->hasParam("hA")) sysState.schedHeavyActive = (request->getParam("hA")->value() == "true");
+                    if(request->hasParam("hS")) { String s = request->getParam("hS")->value(); sysState.schedHeavyStartH = s.substring(0, 2).toInt(); sysState.schedHeavyStartM = s.substring(3, 5).toInt(); }
+                    if(request->hasParam("hE")) { String s = request->getParam("hE")->value(); sysState.schedHeavyEndH = s.substring(0, 2).toInt(); sysState.schedHeavyEndM = s.substring(3, 5).toInt(); }
 
                     // --- NEU: Log leeren beim Start ---
                     if (xSemaphoreTake(logMutex, pdMS_TO_TICKS(200))) {

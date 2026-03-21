@@ -20,11 +20,19 @@ void Task_Startup(void* pvParameters) {
     Serial.println("Startup Task is running...");
     #endif
      
+    // Enable Pins
+    pinMode(ENABLE_3V3_PIN, OUTPUT);
+    digitalWrite(ENABLE_3V3_PIN, HIGH);
+
+    pinMode(ENABLE_BATTERY_PIN, OUTPUT);
+    digitalWrite(ENABLE_BATTERY_PIN, HIGH);
+    delay(100); // Short delay to ensure stable power before initializing peripherals
 
     // Initialize I2C and peripherals
     if(xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         // Initialize I2C
-        Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, 400000);
+        Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, 1700000);
+        delay(100); // Short delay to ensure I2C bus is ready
         
         if (!GPIOExpander.begin_I2C()) {
             //while (1); // TODO Error handling
@@ -63,13 +71,6 @@ void Task_Startup(void* pvParameters) {
 
     // Wakeup Pin 
     pinMode(WAKEUP_PIN, INPUT_PULLUP); 
-
-    // Enable Pins
-    pinMode(ENABLE_3V3_PIN, OUTPUT);
-    digitalWrite(ENABLE_3V3_PIN, HIGH);
-
-    pinMode(ENABLE_BATTERY_PIN, OUTPUT);
-    digitalWrite(ENABLE_BATTERY_PIN, HIGH);
 
     
 

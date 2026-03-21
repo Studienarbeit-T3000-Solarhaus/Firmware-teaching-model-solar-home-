@@ -213,11 +213,11 @@ void Task_Control_GPIO(void* pvParameters) {
                 }
 
                 // --- Batterie/Kondensator Steuerung (Inkrementell) ---
-                for (int i = 0; i < 4; i++) {
-                    // Pins: CAPACITOR_1 bis CAPACITOR_4
-                    bool state = (i < desiredState.batteryActiveCount);
-                    GPIOExpander.digitalWrite(CAPACITOR_1 + i, state ? HIGH : LOW);
-                }
+                //for (int i = 0; i < 4; i++) {
+                //    // Pins: CAPACITOR_1 bis CAPACITOR_4
+                //    bool state = (i < desiredState.batteryActiveCount);
+                //    GPIOExpander.digitalWrite(CAPACITOR_1 + i, state ? HIGH : LOW);
+                //}
 
                 // --- Lasten Schalten ---
                 GPIOExpander.digitalWrite(CONSTANT_LOAD, desiredState.constantLoadOn ? HIGH : LOW);

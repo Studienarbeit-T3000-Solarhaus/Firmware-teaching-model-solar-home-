@@ -1,6 +1,7 @@
 #include "tasks.hpp"
 #include "shared_data.hpp"
 #include <Arduino.h>
+#include "DebugConfig.hpp"
 
 void Task_Power_Sensing(void* pvParameters) {
     

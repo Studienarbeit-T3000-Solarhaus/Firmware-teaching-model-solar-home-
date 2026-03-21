@@ -1,4 +1,5 @@
 #include "Config.hpp"
+#include "DebugConfig.hpp"
 
 // WIFI
 const char* ssid = "SolarHaus_WiFi";
@@ -14,47 +15,38 @@ const uint32_t ColorChargeCaps  = 0x00FF00; // Grün
 const uint32_t ColorDischargeCaps = 0xFF0000; // Rot
 
 // Speicher für die Arrays reservieren
-LedSegment* solarModules[4];
-LedSegment* allSolarModules;
-LedSegment* allCapacitors;
-LedSegment* capacitors[4];
+LedSegment* AllSolarModulesIndices;
+LedSegment* SolarModules[4];
+LedSegment* AllCapacitorsIndices;
+LedSegment* Capacitors[4];
 LedSegment* allLoads;
-LedSegment* constantLoad;
-LedSegment* nightLoad;
-LedSegment* heavyLoad;
-LedSegment* testSegments[2];
+LedSegment* AfterBuckBoost;
 
-// Werte befüllen
-const uint8_t solarModulesLengths[4] = {4, 4, 2, 2}; 
-const uint8_t capacitorsLengths[4] = {3, 3, 3, 3}; 
-const uint8_t loadLengths[3] = {3, 3, 3};
- 
-
-const uint8_t allSolarModulesLength = 8;
-const uint8_t allCapacitorsLength = 8; 
-const uint8_t allLoadsLength = 5; 
-
-const uint8_t solarModulesStart[4] = {0, 4, 8, 10};
-const uint8_t capacitorsStart[4] = {28, 31, 34, 37};
-const uint8_t loadStart[3] = {45, 48, 51};
+const int solarMod1[3] = {20, 21, 22};
+const int solarMod2[3] = {32, 33, 34};
+const int solarMod3[6] = {31, 30, 29, 19, 18, 17};
+const int solarMod4[6] = {28, 27, 26, 25, 24, 23};
+// Array von Zeigern auf die Module
+const int* const solarModulesIndices[4] = {solarMod1, solarMod2, solarMod3, solarMod4};
 
 
-const uint8_t allSolarModulesStart = 12;
-const uint8_t allCapacitorsStart = 20;
-const uint8_t allLoadsStart = 40;
+const int IndicesAllSolarModules[19] = {16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 35, 36};
+const int IndicesAllCapacitors[2] = {37, 38};
 
-// 1. Die genauen Indizes als int-Arrays
-const int test1Indices[8] = {60, 61, 62, 63, 68, 69, 70, 71};
-const int test2Indices[8] = {64, 65, 66, 67, 72, 73, 74, 75};
+const int capacitor1[3] = {39, 40, 41};
+const int capacitor2[3] = {42, 43, 44};
+const int capacitor3[3] = {45, 46, 47};
+const int capacitor4[3] = {48, 49, 50};
+const int* const capacitorsIndices[4] = {capacitor1, capacitor2, capacitor3, capacitor4};
 
-// 2. Das Array von Zeigern auf die obigen Arrays
-const int* const testIndices[2] = {
-    test1Indices,
-    test2Indices
-};
+const int IndicesAllLoads[3] = {51, 52, 53};
 
-// 3. Nur EINMAL die Längen definieren (am besten über sizeof)
-const int testLengths[2] = {
-    sizeof(test1Indices) / sizeof(test1Indices[0]),
-    sizeof(test2Indices) / sizeof(test2Indices[0])
-};
+const int IndicesAfterBuckBoost[7] = {54, 55, 56, 59, 60, 61, 62};
+
+
+const uint8_t LengthAllSolarModules = sizeof(IndicesAllSolarModules) / sizeof(IndicesAllSolarModules[0]);
+const uint8_t LengthSolarModules[4] = {sizeof(solarMod1), sizeof(solarMod2), sizeof(solarMod3), sizeof(solarMod4)};
+const uint8_t LengthAllCapacitors = sizeof(IndicesAllCapacitors) / sizeof(IndicesAllCapacitors[0]);
+const uint8_t LengthCapacitors[4] = {sizeof(capacitor1), sizeof(capacitor2), sizeof(capacitor3), sizeof(capacitor4)};
+const uint8_t LengthAllLoads = sizeof(IndicesAllLoads) / sizeof(IndicesAllLoads[0]);
+const uint8_t LengthAfterBuckBoost = sizeof(IndicesAfterBuckBoost) / sizeof(IndicesAfterBuckBoost[0]);

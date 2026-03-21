@@ -3,6 +3,7 @@
 #include "PinDefinitions.hpp"
 #include <Arduino.h>
 #include "esp_sleep.h"
+#include "DebugConfig.hpp"
 
 void Task_DeepSleep(void* pvParameters) {
     

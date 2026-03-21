@@ -24,7 +24,7 @@ void Task_Startup(void* pvParameters) {
     // Initialize I2C and peripherals
     if(xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         // Initialize I2C
-        Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, 1700000);
+        Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, 400000);
         
         if (!GPIOExpander.begin_I2C()) {
             //while (1); // TODO Error handling
@@ -34,6 +34,7 @@ void Task_Startup(void* pvParameters) {
         #endif
         if (!CurrentSensor.begin()) {
             //while (1); // TODO Error handling
+            Serial.println("Failed to initialize INA3221");
         }
         #ifdef DEBUG
         for (int i = 0; i <= 2; i++) {
@@ -70,13 +71,15 @@ void Task_Startup(void* pvParameters) {
     pinMode(ENABLE_BATTERY_PIN, OUTPUT);
     digitalWrite(ENABLE_BATTERY_PIN, HIGH);
 
+    
+
     // MPPT PWM Pin
     pinMode(MPPT_PWM_PIN, OUTPUT);
     digitalWrite(MPPT_PWM_PIN, LOW);
 
     int GPIOExpanderPins[] = {
-      SOLAR_CELL_1, SOLAR_CELL_2, SOLAR_CELL_3, SOLAR_CELL_4,
-      CAPACITOR_1, CAPACITOR_2, CAPACITOR_3, CAPACITOR_4,
+      SOLAR_CELL_1, SOLAR_CELL_2, SOLAR_CELL_3, SOLAR_CELL_4, 
+      ENABLE_BUCK_BOOST_CONVERTER, ENABLE_MPPT, CAPACITOR_3, CAPACITOR_4,
       CONSTANT_LOAD, NIGHT_LOAD, HEAVY_LOAD
     };
 
@@ -85,6 +88,13 @@ void Task_Startup(void* pvParameters) {
       GPIOExpander.digitalWrite(GPIOExpanderPins[i], LOW);
     }
 
+    // Enable Buck/Boost
+    pinMode(ENABLE_BUCK_BOOST_CONVERTER, OUTPUT);
+    GPIOExpander.digitalWrite(ENABLE_BUCK_BOOST_CONVERTER, HIGH); 
+
+    // Enable MPPT
+    pinMode(ENABLE_MPPT, OUTPUT);
+    GPIOExpander.digitalWrite(ENABLE_MPPT, LOW);
     // Initialize NeoNeopixels
     if (xSemaphoreTake(NeoPixelMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
     Neopixels.begin(); 
@@ -112,6 +122,7 @@ void Task_Startup(void* pvParameters) {
     xTaskCreate(Task_Webserver, "Webserver Task", STACK_SIZE_WEBSERVER_TASK, NULL, PRIORITY_WEBSERVER_TASK, &TaskHandle_Webserver);
     xTaskCreate(Task_MPPT, "MPPT Task", STACK_SIZE_MPPT_TASK, NULL, PRIORITY_MPPT_TASK, &TaskHandle_MPPT);
     xTaskCreate(Task_DeepSleep, "Deep Sleep Task", STACK_SIZE_DEEPSLEEP_TASK, NULL, PRIORITY_DEEPSLEEP_TASK, &TaskHandle_DeepSleep);
+    xTaskCreate(Task_BatteryVoltageMeasurement, "Battery Voltage Measurement Task", STACK_SIZE_BATTERY_VOLTAGE_MEASUREMENT_TASK, NULL, PRIORITY_BATTERY_VOLTAGE_MEASUREMENT_TASK, &TaskHandle_BatteryVoltageMeasurement);
 
     #ifdef DEBUG
     xTaskCreate(Task_Debug, "Debug Task", STACK_SIZE_DEBUG_TASK, NULL, PRIORITY_DEBUG_TASK, &TaskHandle_Debug);
@@ -125,11 +136,11 @@ void Task_Startup(void* pvParameters) {
 
 void printGPIOExpanderStatus() {
   int pins[] = {SOLAR_CELL_1, SOLAR_CELL_2, SOLAR_CELL_3, SOLAR_CELL_4, 
-                CAPACITOR_1, CAPACITOR_2, CAPACITOR_3, CAPACITOR_4, 
+                ENABLE_BUCK_BOOST_CONVERTER, ENABLE_MPPT, CAPACITOR_3, CAPACITOR_4, 
                 CONSTANT_LOAD, NIGHT_LOAD, HEAVY_LOAD};
   
   const char* namen[] = {"Solar 1", "Solar 2", "Solar 3", "Solar 4", 
-                         "Cap 1", "Cap 2", "Cap 3", "Cap 4", 
+                         "Buck/Boost", "MPPT", "Cap 3", "Cap 4", 
                          "Const Load", "Night Load", "Heavy Load"};
 
   Serial.println("--- MCP23017 Status Report ---");

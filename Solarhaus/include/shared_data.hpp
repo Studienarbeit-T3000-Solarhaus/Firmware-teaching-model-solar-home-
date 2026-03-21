@@ -11,6 +11,7 @@ extern SemaphoreHandle_t dataMutex;
 extern SemaphoreHandle_t logMutex; 
 extern SemaphoreHandle_t NeoPixelMutex;
 
+
 // Task Priorities
 #define PRIORITY_STARTUP_TASK 5
 #define PRIORITY_WEBSERVER_TASK 4
@@ -20,6 +21,7 @@ extern SemaphoreHandle_t NeoPixelMutex;
 #define PRIORITY_DEBUG_TASK 1
 #define PRIORITY_MPPT_TASK 3
 #define PRIORITY_DEEPSLEEP_TASK 2
+#define PRIORITY_BATTERY_VOLTAGE_MEASUREMENT_TASK 3
 
 // Task stack sizes
 #define STACK_SIZE_STARTUP_TASK 4096
@@ -30,6 +32,7 @@ extern SemaphoreHandle_t NeoPixelMutex;
 #define STACK_SIZE_DEBUG_TASK 4096
 #define STACK_SIZE_MPPT_TASK 4096
 #define STACK_SIZE_DEEPSLEEP_TASK 4096
+#define STACK_SIZE_BATTERY_VOLTAGE_MEASUREMENT_TASK 4096
 
 // Task frequencies (in Hz)
 #define FREQUENCY_POWER_SENSING_TASK 100
@@ -37,6 +40,7 @@ extern SemaphoreHandle_t NeoPixelMutex;
 #define FREQUENCY_NEOPIXEL_TASK 100
 #define FREQUENCY_MPPT_TASK 10
 #define FREQUENCY_DEEPSLEEP_TASK 10
+#define FREQUENCY_BATTERY_VOLTAGE_MEASUREMENT_TASK 1
 
 // Task periods (in FreeRTOS ticks)
 #define PERIOD_POWER_SENSING_TASK pdMS_TO_TICKS(1000 / FREQUENCY_POWER_SENSING_TASK)
@@ -44,6 +48,7 @@ extern SemaphoreHandle_t NeoPixelMutex;
 #define PERIOD_NEOPIXEL_TASK pdMS_TO_TICKS(1000 / FREQUENCY_NEOPIXEL_TASK)
 #define PERIOD_MPPT_TASK pdMS_TO_TICKS(1000 / FREQUENCY_MPPT_TASK)
 #define PERIOD_DEEPSLEEP_TASK pdMS_TO_TICKS(1000 / FREQUENCY_DEEPSLEEP_TASK)
+#define PERIOD_BATTERY_VOLTAGE_MEASUREMENT_TASK pdMS_TO_TICKS(1000 / FREQUENCY_BATTERY_VOLTAGE_MEASUREMENT_TASK)
 
 // Data Structures
 struct SystemState {
@@ -51,6 +56,8 @@ struct SystemState {
     float busVoltage[3]; 
     float current_mA[3];
     float power_mW[3];
+
+    float adcBatteryVoltage;
     
     // MCP23017 Status
     int solarActiveCount;

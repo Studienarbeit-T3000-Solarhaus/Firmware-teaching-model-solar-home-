@@ -43,8 +43,8 @@
 #define SOLAR_CELL_2 1
 #define SOLAR_CELL_3 2
 #define SOLAR_CELL_4 3
-#define CAPACITOR_1 4
-#define CAPACITOR_2 5
+#define ENABLE_BUCK_BOOST_CONVERTER 4
+#define ENABLE_MPPT 5
 #define CAPACITOR_3 6
 #define CAPACITOR_4 7
 #define HEAVY_LOAD 8 

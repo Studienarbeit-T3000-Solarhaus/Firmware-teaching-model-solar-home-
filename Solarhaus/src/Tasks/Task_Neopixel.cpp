@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 #include "LedSegment.hpp"
+#include "DebugConfig.hpp"
 
 extern Adafruit_NeoPixel Neopixels;
 
@@ -17,24 +18,17 @@ void Task_Neopixel(void* pvParameters) {
     xSemaphoreGive(NeoPixelMutex);
     }
     // Initialize LED Segments
+    AllSolarModulesIndices = new LedSegment(&Neopixels, IndicesAllSolarModules, LengthAllSolarModules, ColorCurrentflow);
     for(int i=0; i<4; i++) {
-        solarModules[i] = new LedSegment(&Neopixels, solarModulesStart[i], solarModulesLengths[i], ColorCurrentflow);
-        capacitors[i] = new LedSegment(&Neopixels, capacitorsStart[i], capacitorsLengths[i], ColorChargeCaps);
+        SolarModules[i] = new LedSegment(&Neopixels, solarModulesIndices[i], LengthSolarModules[i], ColorCurrentflow);
     }
-    allSolarModules = new LedSegment(&Neopixels, allSolarModulesStart, allSolarModulesLength, ColorCurrentflow);
-    allCapacitors = new LedSegment(&Neopixels, allCapacitorsStart, allCapacitorsLength, ColorChargeCaps);
-    allLoads = new LedSegment(&Neopixels, allLoadsStart, allLoadsLength, ColorDischargeCaps);
-    constantLoad = new LedSegment(&Neopixels, loadStart[0], loadLengths[0], ColorCurrentflow);
-    nightLoad = new LedSegment(&Neopixels, loadStart[1], loadLengths[1], ColorCurrentflow);
-    heavyLoad = new LedSegment(&Neopixels, loadStart[2], loadLengths[2], ColorCurrentflow);
+    AllCapacitorsIndices = new LedSegment(&Neopixels, IndicesAllCapacitors, LengthAllCapacitors, ColorChargeCaps);
+    for(int i=0; i<4; i++) {
+        Capacitors[i] = new LedSegment(&Neopixels, capacitorsIndices[i], LengthCapacitors[i], ColorChargeCaps);
+    }
+    allLoads = new LedSegment(&Neopixels, IndicesAllLoads, LengthAllLoads, ColorCurrentflow);
+    AfterBuckBoost = new LedSegment(&Neopixels, IndicesAfterBuckBoost, LengthAfterBuckBoost, ColorCurrentflow);
 
-    // Testsegment 0: Cyan, 100ms Geschwindigkeit, vorwärts
-    testSegments[0] = new LedSegment(&Neopixels, testIndices[0], testLengths[0], Neopixels.Color(0, 255, 255));
-    testSegments[0]->setFlow(100, false);
-
-    // Testsegment 1: Magenta, 100ms Geschwindigkeit, rückwärts (für einen coolen gegenläufigen Effekt)
-    testSegments[1] = new LedSegment(&Neopixels, testIndices[1], testLengths[1], Neopixels.Color(255, 0, 255));
-    testSegments[1]->setFlow(100, false);
 
     SystemState currentState;
 
@@ -66,10 +60,10 @@ void Task_Neopixel(void* pvParameters) {
         // 2. Einzelne Module animieren (nur wenn aktiv)
         for(int i=0; i<4; i++) {
             if (i < activeSolarCount) {
-                solarModules[i]->setFlow(solarAnimSpeed, false);
+                SolarModules[i]->setFlow(solarAnimSpeed, false);
             } else {
-                solarModules[i]->setFlow(0, false);
-                solarModules[i]->clear();
+                SolarModules[i]->setFlow(0, false);
+                SolarModules[i]->clear();
             }
         }
 
@@ -80,10 +74,10 @@ void Task_Neopixel(void* pvParameters) {
             int combinedSpeed = solarAnimSpeed / activeSolarCount;
             // Sicherheitshalber nicht schneller als 20ms, damit man es noch sieht
             if (combinedSpeed < 20) combinedSpeed = 20; 
-            allSolarModules->setFlow(combinedSpeed, false);
+            AllSolarModulesIndices->setFlow(combinedSpeed, false);
         } else {
-            allSolarModules->setFlow(0, false);
-            allSolarModules->clear();
+            AllSolarModulesIndices->setFlow(0, false);
+            AllSolarModulesIndices->clear();
         }
 
 
@@ -106,10 +100,10 @@ void Task_Neopixel(void* pvParameters) {
         if (activeBatCount > 0 && batAnimSpeed > 0) {
             int combinedBatSpeed = batAnimSpeed / activeBatCount;
             if (combinedBatSpeed < 20) combinedBatSpeed = 20;
-            allCapacitors->setFlow(combinedBatSpeed, false);
+            AllCapacitorsIndices->setFlow(combinedBatSpeed, false);
         } else {
-            allCapacitors->setFlow(0, false);
-            allCapacitors->clear();
+            AllCapacitorsIndices->setFlow(0, false);
+            AllCapacitorsIndices->clear();
         }
 
         // --- B2. Füllstandsanzeige der einzelnen Kondensatoren ---
@@ -142,13 +136,13 @@ void Task_Neopixel(void* pvParameters) {
 
         for(int i=0; i<4; i++) {
             // Zuerst Flow stoppen, da wir hier statisch füllen
-            capacitors[i]->setFlow(0, false);
+            Capacitors[i]->setFlow(0, false);
 
             if (i < activeBatCount) {
                 // Wir übergeben jetzt einfach direkt den Prozentwert!
-                capacitors[i]->fill(percentage, batColor);
+                Capacitors[i]->fill(percentage, batColor);
             } else {
-                capacitors[i]->clear();
+                Capacitors[i]->clear();
             }
         }
 
@@ -186,26 +180,26 @@ void Task_Neopixel(void* pvParameters) {
         // 3. Heavy Load
         if (currentState.heavyLoadOn) {
             int heavySpeed = (loadBaseSpeed > 0) ? loadBaseSpeed : 200;
-            heavyLoad->setFlow(heavySpeed, false); 
+            //heavyLoad->setFlow(heavySpeed, false); 
         } else {
-            heavyLoad->setFlow(0, false); 
-            heavyLoad->clear();
+            //heavyLoad->setFlow(0, false); 
+            //heavyLoad->clear();
         }
 
         // 4. Constant Load
         if (currentState.constantLoadOn) {
-            constantLoad->setFlow((loadBaseSpeed > 0) ? loadBaseSpeed : 150, false);
+            //constantLoad->setFlow((loadBaseSpeed > 0) ? loadBaseSpeed : 150, false);
         } else {
-            constantLoad->setFlow(0, false);
-            constantLoad->clear();
+            //constantLoad->setFlow(0, false);
+            //constantLoad->clear();
         }
 
         // 5. Night Load
         if (currentState.nightLoadOn) {
-            nightLoad->setFlow((loadBaseSpeed > 0) ? loadBaseSpeed : 150, false);
+            //nightLoad->setFlow((loadBaseSpeed > 0) ? loadBaseSpeed : 150, false);
         } else {
-            nightLoad->setFlow(0, false);
-            nightLoad->clear();
+            //nightLoad->setFlow(0, false);
+            //nightLoad->clear();
         }
 
 
@@ -213,21 +207,21 @@ void Task_Neopixel(void* pvParameters) {
         // UPDATE & SHOW
         // =========================================================
         
-        for(int i=0; i<4; i++) solarModules[i]->update();
-        allSolarModules->update();
+        for(int i=0; i<4; i++) SolarModules[i]->update();
+        AllSolarModulesIndices->update();
         
         // Kondensatoren müssen nicht update() rufen für Animation, da sie manuell gesetzt wurden,
         // ABER allCapacitors läuft als Animation:
-        allCapacitors->update();
+        AllCapacitorsIndices->update();
         // Die einzelnen capacitors[i] haben wir oben direkt per setPixelColor gesetzt, 
         // daher kein update() nötig, schadet aber auch nicht (speed ist eh 0).
         
         allLoads->update();
-        constantLoad->update();
-        nightLoad->update();
-        heavyLoad->update();
+        //constantLoad->update();
+        //nightLoad->update();
+        //heavyLoad->update();
 
-        for(int i=0; i<2; i++) testSegments[i]->update();
+        for(int i=0; i<2; i++) //testSegments[i]->update();
         
         Neopixels.show();
         xSemaphoreGive(NeoPixelMutex);

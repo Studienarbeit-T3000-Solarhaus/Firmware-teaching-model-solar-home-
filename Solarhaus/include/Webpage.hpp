@@ -91,6 +91,9 @@ const char index_html[] PROGMEM = R"rawliteral(
     </style>
 </head>
 <body>
+    <div style="position: absolute; top: 15px; right: 15px; background-color: #333; color: white; padding: 10px 15px; border-radius: 8px; font-family: monospace; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000;">
+        Akku (ADC): <span id="adcDisp">0.00 V</span>
+    </div>
     <div class="card">
         <div class="header">
             <h1>Solar House Power Monitor</h1>
@@ -405,6 +408,12 @@ const char index_html[] PROGMEM = R"rawliteral(
                     simActiveGlobal = data.sim_active;
                     const isDay = data.is_day;
 
+                    // --- NEU: ADC Spannung anzeigen ---
+                    if (data.adc_battery_voltage !== undefined) {
+                        document.getElementById('adcDisp').innerText = data.adc_battery_voltage.toFixed(2) + " V";
+                    }
+                    // ----------------------------------
+                    
                     // --- Simulation beendet? Lade Diagrammdaten! ---
                     if (wasSimActive && !simActiveGlobal) {
                         loadHistoryData();

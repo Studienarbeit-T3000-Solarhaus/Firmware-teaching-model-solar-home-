@@ -2,6 +2,7 @@
 #include "shared_data.hpp"
 #include <Arduino.h>
 #include "Config.hpp"
+#include "DebugConfig.hpp"
 
 // Task Handle für diesen Task selbst (wird in shared_data.cpp definiert)
 extern TaskHandle_t TaskHandle_Debug;
@@ -49,5 +50,11 @@ void Task_Debug(void* pvParameters) {
         Serial.println(esp_get_free_heap_size());
         
         Serial.println("========================================");
+
+        
+        extern void printGPIOExpanderStatus();
+        printGPIOExpanderStatus();
+
+        
     }
 }

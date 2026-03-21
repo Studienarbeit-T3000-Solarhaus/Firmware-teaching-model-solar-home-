@@ -48,7 +48,13 @@ void Task_Webserver(void* pvParameters) {
 
             // Read GPIO States
             for(int i=0; i<4; i++) if(GPIOExpander.digitalRead(SOLAR_CELL_1 + i)) solarCount++;
-            for(int i=0; i<4; i++) if(GPIOExpander.digitalRead(CAPACITOR_1 + i)) batCount++;
+            if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
+            localSystemState = sysState;
+            xSemaphoreGive(dataMutex);
+            }
+
+            // NEU: BatCount direkt aus der auf der Webseite eingestellten Variablen auslesen
+            batCount = localSystemState.batteryActiveCount;
             
             constLoadOn = GPIOExpander.digitalRead(CONSTANT_LOAD);
             nightLoadOn = GPIOExpander.digitalRead(NIGHT_LOAD);
@@ -93,6 +99,7 @@ void Task_Webserver(void* pvParameters) {
         // JSON zusammenbauen
         // Allgemeine Statuswerte
         json += "\"bus_voltage\":" + String(localSystemState.busVoltage[1], 3) + ",";
+        json += "\"adc_battery_voltage\":" + String(localSystemState.adcBatteryVoltage, 2) + ",";
         json += "\"solar_count\":" + String(solarCount) + ",";
         json += "\"battery_count\":" + String(batCount) + ",";
         json += "\"sim_active\":" + String(localSystemState.isSimActive ? "true" : "false") + ",";

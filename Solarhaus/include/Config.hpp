@@ -20,34 +20,30 @@ extern const uint32_t ColorChargeCaps;
 extern const uint32_t ColorDischargeCaps;
 
 // --- LED Segmente Zeiger ---
-extern LedSegment* solarModules[4];
-extern LedSegment* allSolarModules;
-extern LedSegment* allCapacitors;
-extern LedSegment* capacitors[4];
+
+extern LedSegment* AllSolarModulesIndices;
+extern LedSegment* SolarModules[4];
+extern LedSegment* AllCapacitorsIndices;
+extern LedSegment* Capacitors[4];
 extern LedSegment* allLoads;
-extern LedSegment* constantLoad;
-extern LedSegment* nightLoad;
-extern LedSegment* heavyLoad;
-extern LedSegment* testSegments[2];
+extern LedSegment* AfterBuckBoost; 
 
 // --- Längen und Startpositionen ---
-extern const uint8_t solarModulesLengths[4];
-extern const uint8_t capacitorsLengths[4];
-extern const uint8_t loadLengths[3];
-extern const int testLengths[2];
 
 
-extern const uint8_t allSolarModulesLength;
-extern const uint8_t allCapacitorsLength;
-extern const uint8_t allLoadsLength;
+extern const int IndicesAllSolarModules[19];
+extern const int* const solarModulesIndices[4];
+extern const int IndicesAllCapacitors[2];
+extern const int* const capacitorsIndices[4];
+extern const int IndicesAllLoads[3];
+extern const int IndicesAfterBuckBoost[7];
 
-extern const uint8_t solarModulesStart[4];
-extern const uint8_t capacitorsStart[4];
-extern const uint8_t loadStart[3];
 
-extern const uint8_t allSolarModulesStart;
-extern const uint8_t allCapacitorsStart;
-extern const uint8_t allLoadsStart;
-extern const int* const testIndices[2];
+extern const uint8_t LengthAllSolarModules;
+extern const uint8_t LengthSolarModules[4];
+extern const uint8_t LengthAllCapacitors;
+extern const uint8_t LengthCapacitors[4];
+extern const uint8_t LengthAllLoads;
+extern const uint8_t LengthAfterBuckBoost;
 
 #endif

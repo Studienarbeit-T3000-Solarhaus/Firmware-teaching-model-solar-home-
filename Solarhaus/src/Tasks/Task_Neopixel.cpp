@@ -28,6 +28,11 @@ void Task_Neopixel(void* pvParameters) {
     }
     allLoads = new LedSegment(&Neopixels, IndicesAllLoads, LengthAllLoads, ColorCurrentflow);
     AfterBuckBoost = new LedSegment(&Neopixels, IndicesAfterBuckBoost, LengthAfterBuckBoost, ColorCurrentflow);
+    toOtherLoads = new LedSegment(&Neopixels, IndicesToOtherLoads, LengthToOtherLoads, ColorCurrentflow);
+    constantLoad = new LedSegment(&Neopixels, IndicesConstantLoad, LengthConstantLoad, ColorCurrentflow);
+    nightLoad = new LedSegment(&Neopixels, IndicesNightLoad, LengthNightLoad, ColorCurrentflow);
+    heavyLoad = new LedSegment(&Neopixels, IndicesHeavyLoad, LengthHeavyLoad, ColorCurrentflow);
+    
 
 
     SystemState currentState;

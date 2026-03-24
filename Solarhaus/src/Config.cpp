@@ -21,6 +21,10 @@ LedSegment* AllCapacitorsIndices;
 LedSegment* Capacitors[4];
 LedSegment* allLoads;
 LedSegment* AfterBuckBoost;
+LedSegment* toOtherLoads;
+LedSegment* constantLoad;
+LedSegment* nightLoad;
+LedSegment* heavyLoad;
 
 const int solarMod1[3] = {20, 21, 22};
 const int solarMod2[3] = {32, 33, 34};
@@ -41,7 +45,11 @@ const int* const capacitorsIndices[4] = {capacitor1, capacitor2, capacitor3, cap
 
 const int IndicesAllLoads[3] = {51, 52, 53};
 
-const int IndicesAfterBuckBoost[7] = {54, 55, 56, 59, 60, 61, 62};
+const int IndicesAfterBuckBoost[3] = {54, 55, 56};
+const int IndicesToOtherLoads[4] = {59, 60, 61, 62};
+const int IndicesConstantLoad[2] = {57, 58};
+const int IndicesNightLoad[2] = {65, 66};
+const int IndicesHeavyLoad[2] = {63, 64};
 
 
 const uint8_t LengthAllSolarModules = sizeof(IndicesAllSolarModules) / sizeof(IndicesAllSolarModules[0]);
@@ -50,3 +58,7 @@ const uint8_t LengthAllCapacitors = sizeof(IndicesAllCapacitors) / sizeof(Indice
 const uint8_t LengthCapacitors[4] = {sizeof(capacitor1), sizeof(capacitor2), sizeof(capacitor3), sizeof(capacitor4)};
 const uint8_t LengthAllLoads = sizeof(IndicesAllLoads) / sizeof(IndicesAllLoads[0]);
 const uint8_t LengthAfterBuckBoost = sizeof(IndicesAfterBuckBoost) / sizeof(IndicesAfterBuckBoost[0]);
+const uint8_t LengthToOtherLoads = sizeof(IndicesToOtherLoads) / sizeof(IndicesToOtherLoads[0]);
+const uint8_t LengthConstantLoad = sizeof(IndicesConstantLoad) / sizeof(IndicesConstantLoad[0]);
+const uint8_t LengthNightLoad = sizeof(IndicesNightLoad) / sizeof(IndicesNightLoad[0]);
+const uint8_t LengthHeavyLoad = sizeof(IndicesHeavyLoad) / sizeof(IndicesHeavyLoad[0]);

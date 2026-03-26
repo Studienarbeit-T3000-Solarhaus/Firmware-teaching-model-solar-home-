@@ -80,7 +80,7 @@ void Task_Startup(void* pvParameters) {
 
     int GPIOExpanderPins[] = {
       SOLAR_CELL_1, SOLAR_CELL_2, SOLAR_CELL_3, SOLAR_CELL_4, 
-      ENABLE_BUCK_BOOST_CONVERTER, ENABLE_MPPT, CAPACITOR_3, CAPACITOR_4,
+      ENABLE_BUCK_BOOST_CONVERTER, BYPASS_MPPT, CAPACITOR_3, CAPACITOR_4,
       CONSTANT_LOAD, NIGHT_LOAD, HEAVY_LOAD
     };
 
@@ -94,8 +94,8 @@ void Task_Startup(void* pvParameters) {
     GPIOExpander.digitalWrite(ENABLE_BUCK_BOOST_CONVERTER, HIGH); 
 
     // Enable MPPT
-    pinMode(ENABLE_MPPT, OUTPUT);
-    GPIOExpander.digitalWrite(ENABLE_MPPT, LOW);
+    pinMode(BYPASS_MPPT, OUTPUT);
+    GPIOExpander.digitalWrite(BYPASS_MPPT, LOW);
     // Initialize NeoNeopixels
     if (xSemaphoreTake(NeoPixelMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
     Neopixels.begin(); 
@@ -137,7 +137,7 @@ void Task_Startup(void* pvParameters) {
 
 void printGPIOExpanderStatus() {
   int pins[] = {SOLAR_CELL_1, SOLAR_CELL_2, SOLAR_CELL_3, SOLAR_CELL_4, 
-                ENABLE_BUCK_BOOST_CONVERTER, ENABLE_MPPT, CAPACITOR_3, CAPACITOR_4, 
+                ENABLE_BUCK_BOOST_CONVERTER, BYPASS_MPPT, CAPACITOR_3, CAPACITOR_4, 
                 CONSTANT_LOAD, NIGHT_LOAD, HEAVY_LOAD};
   
   const char* namen[] = {"Solar 1", "Solar 2", "Solar 3", "Solar 4", 

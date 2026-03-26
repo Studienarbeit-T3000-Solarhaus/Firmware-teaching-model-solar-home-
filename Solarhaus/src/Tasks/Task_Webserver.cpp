@@ -100,6 +100,7 @@ void Task_Webserver(void* pvParameters) {
         // Allgemeine Statuswerte
         json += "\"bus_voltage\":" + String(localSystemState.busVoltage[1], 3) + ",";
         json += "\"adc_battery_voltage\":" + String(localSystemState.adcBatteryVoltage, 2) + ",";
+        json += "\"adc_battery_percentage\":" + String(localSystemState.adcBatteryPercentage, 1) + ",";
         json += "\"solar_count\":" + String(solarCount) + ",";
         json += "\"battery_count\":" + String(batCount) + ",";
         json += "\"sim_active\":" + String(localSystemState.isSimActive ? "true" : "false") + ",";
@@ -310,6 +311,21 @@ void Task_Webserver(void* pvParameters) {
             }
         }
         request->send(200, "text/plain", "OK");
+    });
+
+    server.on("/toggle_mppt_bypass", HTTP_GET, [](AsyncWebServerRequest *request){
+        if(xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            // Status umkehren
+            sysState.mpptBypassOn = !sysState.mpptBypassOn; 
+            
+            // Neuen Status als String zurücksenden ("1" für an, "0" für aus)
+            String responseStr = sysState.mpptBypassOn ? "1" : "0";
+            xSemaphoreGive(dataMutex);
+            
+            request->send(200, "text/plain", responseStr);
+        } else {
+            request->send(500, "text/plain", "Mutex Error");
+        }
     });
 
     server.begin();

@@ -324,6 +324,12 @@ const char index_html[] PROGMEM = R"rawliteral(
                 <tr><td>Simulation Active</td><td id="info_sim">NO</td></tr>
                 <tr><td>Status</td><td style="color:green; font-weight:bold;">ONLINE</td></tr>
             </table>
+
+            <div class="control-card">
+    <h3>MPPT Bypass</h3>
+    <p>Status: <span id="mppt-bypass-status">Aus</span></p>
+    <button id="btn-mppt-bypass" onclick="toggleMpptBypass()">Bypass aktivieren</button>
+</div>
             <br>
             <div style="font-size:12px; color:#999; text-align:center;">
                 Solar House Firmware v1.4<br>
@@ -407,8 +413,11 @@ const char index_html[] PROGMEM = R"rawliteral(
                     const isDay = data.is_day;
 
                     // --- NEU: ADC Spannung anzeigen ---
-                    if (data.adc_battery_voltage !== undefined) {
-                        document.getElementById('adcDisp').innerText = data.adc_battery_voltage.toFixed(2) + " V";
+                    //if (data.adc_battery_voltage !== undefined) {
+                    //    document.getElementById('adcDisp').innerText = data.adc_battery_voltage.toFixed(2) + " V";
+                    //}
+                    if (data.adc_battery_percentage !== undefined && data.adc_battery_voltage !== undefined) {
+                        document.getElementById('adcDisp').innerText = data.adc_battery_voltage.toFixed(2) + " V (" + data.adc_battery_percentage.toFixed(0) + "%)";
                     }
                     // ----------------------------------
                     
@@ -752,6 +761,25 @@ const char index_html[] PROGMEM = R"rawliteral(
             var xhr = new XMLHttpRequest();
             xhr.open("GET", "/setPWM?value=" + val, true);
             xhr.send();
+        }
+
+        function toggleMpptBypass() {
+            fetch('/toggle_mppt_bypass')
+            .then(response => response.text())
+            .then(state => {
+                const statusSpan = document.getElementById('mppt-bypass-status');
+                const btn = document.getElementById('btn-mppt-bypass');
+
+                if(state === "1") {
+                    statusSpan.innerText = "Aktiv";
+                    btn.innerText = "Bypass deaktivieren";
+                    statusSpan.style.color = "green";
+                } else {
+                    statusSpan.innerText = "Aus";
+                    btn.innerText = "Bypass aktivieren";
+                    statusSpan.style.color = "red";
+                }
+            });
         }
 
         setInterval(updateUI, 250); 

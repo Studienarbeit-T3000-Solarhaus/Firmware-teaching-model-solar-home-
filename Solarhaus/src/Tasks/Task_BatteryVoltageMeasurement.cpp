@@ -8,6 +8,8 @@
  * Task zur direkten Messung der Batteriespannung über den ADC des ESP32-C3.
  * Dies dient als Redundanz oder Alternative zur Messung über den INA3221.
  */
+float getLiPoPercentage(float voltage);
+
 void Task_BatteryVoltageMeasurement(void* pvParameters) {
     // ADC-Konfiguration (0-3.3V Bereich beim ESP32-C3)
     analogReadResolution(12); // 12-Bit Auflösung (0-4095)
@@ -30,22 +32,49 @@ void Task_BatteryVoltageMeasurement(void* pvParameters) {
         float avgAdc = (float)sum / samples;
 
         // Berechnung der realen Spannung
-        // Spannung = (ADC_Wert / Max_ADC) * Ref_Spannung * Teilerfaktor
-        float measuredVoltage = (avgAdc / 4095.0f) * referenceVoltage * voltageDividerRatio;
+        float measuredVoltage = ((avgAdc / 4095.0f) * referenceVoltage * voltageDividerRatio) - 0.29f; // Offset 
+        
+        // --- NEU: In Prozent umrechnen ---
+        float batteryPercentage = getLiPoPercentage(measuredVoltage);
 
-        // --- NEU: Wert in den globalen Speicher schreiben ---
+        // --- Wert in den globalen Speicher schreiben ---
         if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
             sysState.adcBatteryVoltage = measuredVoltage;
+            sysState.adcBatteryPercentage = batteryPercentage; // <--- NEU
             xSemaphoreGive(dataMutex);
         }
-        // ----------------------------------------------------
 
         #ifdef DEBUG_BatteryVoltageMeasurement
-        Serial.print("Battery Voltage Measurement: ");
+        Serial.print("Battery Voltage: ");
         Serial.print(measuredVoltage, 3);
-        Serial.println(" V");
+        Serial.print(" V -> ");
+        Serial.print(batteryPercentage, 1);
+        Serial.println(" %");
         #endif
 
         vTaskDelayUntil(&xLastWakeTime, PERIOD_BATTERY_VOLTAGE_MEASUREMENT_TASK);
     }
+}
+
+
+float getLiPoPercentage(float voltage) {
+    // Stützstellen der LiPo Entladekurve (für 1S, anpassen falls 2S/3S)
+    const int numPoints = 11;
+    const float voltages[numPoints] = {3.20, 3.50, 3.60, 3.70, 3.75, 3.80, 3.85, 3.90, 4.00, 4.10, 4.20};
+    const float percentages[numPoints] = {0.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 80.0, 90.0, 100.0};
+
+    // Wertebereich abfangen
+    if (voltage <= voltages[0]) return 0.0f;
+    if (voltage >= voltages[numPoints - 1]) return 100.0f;
+
+    // Lineare Interpolation zwischen den passenden Stützstellen
+    for (int i = 0; i < numPoints - 1; i++) {
+        if (voltage >= voltages[i] && voltage <= voltages[i + 1]) {
+            float vDiff = voltages[i + 1] - voltages[i];
+            float pDiff = percentages[i + 1] - percentages[i];
+            float vFraction = (voltage - voltages[i]) / vDiff;
+            return percentages[i] + (vFraction * pDiff);
+        }
+    }
+    return 0.0f;
 }

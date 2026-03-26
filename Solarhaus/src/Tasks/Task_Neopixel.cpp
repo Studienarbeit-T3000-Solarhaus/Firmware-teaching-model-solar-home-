@@ -23,9 +23,9 @@ void Task_Neopixel(void* pvParameters) {
     for(int i=0; i<4; i++) {
         SolarModules[i] = new LedSegment(&Neopixels, solarModulesIndices[i], LengthSolarModules[i], ColorCurrentflow);
     }
-    AllCapacitorsIndices = new LedSegment(&Neopixels, IndicesAllCapacitors, LengthAllCapacitors, ColorChargeCaps);
+    AllCapacitorsIndices = new LedSegment(&Neopixels, IndicesAllCapacitors, LengthAllCapacitors, ColorCurrentflow);
     for(int i=0; i<4; i++) {
-        Capacitors[i] = new LedSegment(&Neopixels, capacitorsIndices[i], LengthCapacitors[i], ColorChargeCaps);
+        Capacitors[i] = new LedSegment(&Neopixels, capacitorsIndices[i], LengthCapacitors[i], ColorCurrentflow);
     }
     allLoads = new LedSegment(&Neopixels, IndicesAllLoads, LengthAllLoads, ColorCurrentflow);
     AfterBuckBoost = new LedSegment(&Neopixels, IndicesAfterBuckBoost, LengthAfterBuckBoost, ColorCurrentflow);
@@ -93,12 +93,19 @@ void Task_Neopixel(void* pvParameters) {
 
             if (currentBat >= 1.0) {
                 float clampedBat = constrain(currentBat, 1.0, 100.0); 
-                batAnimSpeed = map((long)clampedBat, 1, 100, 200, 30);
+                // NEU: Werte erhöht. 
+                // 400ms (sehr langsam bei 1mA) bis 60ms (schnell bei Vollast 100mA)
+                batAnimSpeed = map((long)clampedBat, 1, 100, 400, 60);
             }
 
             if (activeBatCount > 0 && batAnimSpeed > 0) {
-                int combinedBatSpeed = batAnimSpeed / activeBatCount;
-                if (combinedBatSpeed < 20) combinedBatSpeed = 20;
+                // NEU: Wir teilen nicht mehr durch activeBatCount, damit 
+                // das Lauflicht nicht unnatürlich schnell wird, wenn mehrere 
+                // Kondensatoren zugeschaltet sind.
+                int combinedBatSpeed = batAnimSpeed; 
+                
+                // Untergrenze (maximaler Speed) zur Sicherheit auf 40ms gesetzt
+                if (combinedBatSpeed < 40) combinedBatSpeed = 40; 
                 AllCapacitorsIndices->setFlow(combinedBatSpeed, false);
             } else {
                 AllCapacitorsIndices->setFlow(0, false);

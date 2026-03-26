@@ -212,6 +212,13 @@ void Task_Control_GPIO(void* pvParameters) {
                     GPIOExpander.digitalWrite(SOLAR_CELL_1 + i, state ? HIGH : LOW);
                 }
 
+                // Annahme: PIN_MPPT_BYPASS ist in deiner PinDefinitions.hpp definiert
+                if (desiredState.mpptBypassOn) {
+                    GPIOExpander.digitalWrite(BYPASS_MPPT, HIGH); 
+                } else {
+                    GPIOExpander.digitalWrite(BYPASS_MPPT, LOW);
+                }
+
                 // --- Batterie/Kondensator Steuerung (Inkrementell) ---
                 //for (int i = 0; i < 4; i++) {
                 //    // Pins: CAPACITOR_1 bis CAPACITOR_4

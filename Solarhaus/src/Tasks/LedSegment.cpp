@@ -133,8 +133,7 @@ void LedSegment::fill(float percentage, uint32_t fillColor) {
       // Das ist die "Übergangs-LED"
       strip->setPixelColor(pixelIndices[i], partialColor);
     } else {
-      // Restliche LEDs sind aus
-      strip->setPixelColor(pixelIndices[i], 0);
+      strip->setPixelColor(pixelIndices[i], strip->Color(8, 8, 8));
     }
   }
 }

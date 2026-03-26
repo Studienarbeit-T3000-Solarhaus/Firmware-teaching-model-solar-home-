@@ -123,18 +123,34 @@ void Task_Neopixel(void* pvParameters) {
                 percentage = (batVoltage - minV) / (maxV - minV);
             }
 
+            // ... (Vorheriger Code für percentage bleibt gleich)
             if (percentage < 0.0) percentage = 0.0;
             if (percentage > 1.0) percentage = 1.0;
 
-            uint32_t batColor;
-            if (percentage > 0.5) batColor = Neopixels.Color(0, 119, 187);      
-            else if (percentage > 0.2) batColor = Neopixels.Color(238, 204, 17); 
-            else batColor = Neopixels.Color(213, 94, 0);                         
+            // --- NEU: Fließender Farb-Übergang (Rot -> Gelb -> Grün) ---
+            uint8_t r, g;
+            uint8_t b = 0; // Blau brauchen wir für diese Farben nicht
+
+            if (percentage <= 0.5) {
+                // Untere Hälfte (0% bis 50%): Rot bleibt voll, Grün blendet sanft ein
+                // percentage * 2.0 rechnet den Bereich 0.0-0.5 auf 0.0-1.0 hoch
+                r = 255;
+                g = (uint8_t)(255.0 * (percentage * 2.0)); 
+            } else {
+                // Obere Hälfte (50% bis 100%): Grün ist voll, Rot blendet sanft aus
+                // (1.0 - percentage) * 2.0 rechnet den Restbereich rückwärts auf 0.0-1.0
+                r = (uint8_t)(255.0 * ((1.0 - percentage) * 2.0));
+                g = 255;
+            }
+
+            uint32_t batColor = Neopixels.Color(r, g, b);
+            // -----------------------------------------------------------
 
             for(int i=0; i<4; i++) {
                 Capacitors[i]->setFlow(0, false);
 
                 if (i < activeBatCount) {
+                    // Wir übergeben die stufenlos berechnete Farbe
                     Capacitors[i]->fill(percentage, batColor);
                 } else {
                     Capacitors[i]->clear();

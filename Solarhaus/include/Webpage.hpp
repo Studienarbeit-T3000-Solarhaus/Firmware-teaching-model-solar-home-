@@ -91,9 +91,6 @@ const char index_html[] PROGMEM = R"rawliteral(
     </style>
 </head>
 <body>
-    <div style="position: absolute; top: 15px; right: 15px; background-color: #333; color: white; padding: 10px 15px; border-radius: 8px; font-family: monospace; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000;">
-        Akku (ADC): <span id="adcDisp">0.00 V</span>
-    </div>
     <div class="card">
         <div class="header">
             <h1>Solar House Power Monitor</h1>
@@ -319,6 +316,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         <div id="SystemInfo" class="tab-content">
             <div class="section-title">System Metrics</div>
             <table class="info-table">
+                ><td>Akkustand</td><td id="adcDisp">0.00 V</td></tr>
                 <tr><td>Bus Voltage (Solar)</td><td id="info_v1">0.00 V</td></tr>
                 <tr><td>Bus Voltage (Battery)</td><td id="info_v2">0.00 V</td></tr>
                 <tr><td>Bus Voltage (Load)</td><td id="info_v3">0.00 V</td></tr>

@@ -53,9 +53,21 @@ const int IndicesHeavyLoad[2] = {63, 64};
 
 
 const uint8_t LengthAllSolarModules = sizeof(IndicesAllSolarModules) / sizeof(IndicesAllSolarModules[0]);
-const uint8_t LengthSolarModules[4] = {sizeof(solarMod1), sizeof(solarMod2), sizeof(solarMod3), sizeof(solarMod4)};
+const uint8_t LengthSolarModules[4] = {
+    sizeof(solarMod1) / sizeof(solarMod1[0]), 
+    sizeof(solarMod2) / sizeof(solarMod2[0]), 
+    sizeof(solarMod3) / sizeof(solarMod3[0]), 
+    sizeof(solarMod4) / sizeof(solarMod4[0])
+};
+
+const uint8_t LengthCapacitors[4] = {
+    sizeof(capacitor1) / sizeof(capacitor1[0]), 
+    sizeof(capacitor2) / sizeof(capacitor2[0]), 
+    sizeof(capacitor3) / sizeof(capacitor3[0]), 
+    sizeof(capacitor4) / sizeof(capacitor4[0])
+};
 const uint8_t LengthAllCapacitors = sizeof(IndicesAllCapacitors) / sizeof(IndicesAllCapacitors[0]);
-const uint8_t LengthCapacitors[4] = {sizeof(capacitor1), sizeof(capacitor2), sizeof(capacitor3), sizeof(capacitor4)};
+
 const uint8_t LengthAllLoads = sizeof(IndicesAllLoads) / sizeof(IndicesAllLoads[0]);
 const uint8_t LengthAfterBuckBoost = sizeof(IndicesAfterBuckBoost) / sizeof(IndicesAfterBuckBoost[0]);
 const uint8_t LengthToOtherLoads = sizeof(IndicesToOtherLoads) / sizeof(IndicesToOtherLoads[0]);

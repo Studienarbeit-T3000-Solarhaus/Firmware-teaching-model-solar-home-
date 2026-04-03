@@ -32,6 +32,8 @@ void Task_Neopixel(void* pvParameters) {
     toOtherLoads = new LedSegment(&Neopixels, IndicesToOtherLoads, LengthToOtherLoads, ColorCurrentflow);
     constantLoad = new LedSegment(&Neopixels, IndicesConstantLoad, LengthConstantLoad, ColorCurrentflow);
     nightLoad = new LedSegment(&Neopixels, IndicesNightLoad, LengthNightLoad, ColorCurrentflow);
+    nightLoad->setExcludeLast(true); // Letzte LED leuchtet statisch als Lampe
+    nightLoad->setPulse(true);       // Die LED davor pulsiert
     heavyLoad = new LedSegment(&Neopixels, IndicesHeavyLoad, LengthHeavyLoad, ColorCurrentflow);
     
     SystemState currentState;

@@ -9,6 +9,10 @@ LedSegment::LedSegment(Adafruit_NeoPixel* mainStrip, int start, int len, uint32_
   speedMs = 0; 
   reverse = false;
   lastUpdate = 0;
+  excludeLast = false;
+  pulse = false;
+  pulseValue = 0;
+  pulseDir = 1;
 
   // Array dynamisch anlegen und mit fortlaufenden Indizes füllen
   pixelIndices = new int[length];
@@ -26,6 +30,10 @@ LedSegment::LedSegment(Adafruit_NeoPixel* mainStrip, const int* indices, int len
   speedMs = 0;
   reverse = false;
   lastUpdate = 0;
+  excludeLast = false;
+  pulse = false;
+  pulseValue = 0;
+  pulseDir = 1;
 
   // Array dynamisch anlegen und übergebene Indizes kopieren
   pixelIndices = new int[length];
@@ -53,47 +61,87 @@ void LedSegment::setColor(uint32_t newColor) {
   color = newColor;
 }
 
+// --- SET EXCLUDE LAST ---
+void LedSegment::setExcludeLast(bool exclude) {
+  excludeLast = exclude;
+}
+
+// --- SET PULSE ---
+void LedSegment::setPulse(bool p) {
+  pulse = p;
+}
+
 // --- UPDATE ---
 void LedSegment::update() {
   if (speedMs <= 0) return;
 
   unsigned long currentMillis = millis();
 
-  if (currentMillis - lastUpdate >= speedMs) {
+  // Für das Pulsieren nutzen wir eine schnellere Update-Rate als das Lauflicht (feste 20ms Schritte für smoothes Fading)
+  unsigned long updateInterval = pulse ? 20 : speedMs;
+
+  if (currentMillis - lastUpdate >= updateInterval) {
     lastUpdate = currentMillis;
 
-    // 1. NEU: Alle Pixel im Segment abdunkeln (Fade-Effekt)
-    for (int i = 0; i < length; i++) {
-      uint32_t c = strip->getPixelColor(pixelIndices[i]);
-      
-      if (c > 0) { // Nur rechnen, wenn die LED nicht sowieso schon aus ist
-        // RGB-Werte extrahieren
-        uint8_t r = (uint8_t)(c >> 16);
-        uint8_t g = (uint8_t)(c >> 8);
-        uint8_t b = (uint8_t)c;
+    // Effektive Länge (eins weniger, wenn das letzte Pixel statisch ist)
+    int effectiveLength = excludeLast ? (length - 1) : length;
+    if (effectiveLength < 0) return;
 
-        // Werte reduzieren (Skalierungsfaktor). 
-        // (Wert * 150) >> 8 ist eine schnelle Division: es bleiben ca. 60% der Helligkeit übrig.
-        // TIPP: Erhöhe die 150 (z.B. auf 200) für einen längeren Schweif, verringere sie für einen kürzeren!
-        r = (r * 150) >> 8;
-        g = (g * 150) >> 8;
-        b = (b * 150) >> 8;
+    if (pulse && effectiveLength > 0) {
+      // --- PULS MODUS ---
+      // Schrittweite basierend auf speedMs skalieren (kleinerer speedMs = schnelleres Pulsieren)
+      int step = map(speedMs, 200, 30, 5, 25);
+      if (step < 2) step = 2;
 
-        strip->setPixelColor(pixelIndices[i], strip->Color(r, g, b));
+      pulseValue += (pulseDir * step);
+      if (pulseValue >= 255) { pulseValue = 255; pulseDir = -1; }
+      if (pulseValue <= 20)  { pulseValue = 20;  pulseDir = 1;  }
+
+      uint8_t r = (uint8_t)(color >> 16);
+      uint8_t g = (uint8_t)(color >> 8);
+      uint8_t b = (uint8_t)color;
+
+      r = (r * pulseValue) >> 8;
+      g = (g * pulseValue) >> 8;
+      b = (b * pulseValue) >> 8;
+      uint32_t pulsedColor = strip->Color(r, g, b);
+
+      for (int i = 0; i < effectiveLength; i++) {
+        strip->setPixelColor(pixelIndices[i], pulsedColor);
       }
-    }
+    } else if (effectiveLength > 0) {
+      // --- LAUFLICHT MODUS ---
+      // 1. Abdunkeln
+      for (int i = 0; i < effectiveLength; i++) {
+        uint32_t c = strip->getPixelColor(pixelIndices[i]);
+        if (c > 0) {
+          uint8_t r = (uint8_t)(c >> 16);
+          uint8_t g = (uint8_t)(c >> 8);
+          uint8_t b = (uint8_t)c;
+          r = (r * 150) >> 8;
+          g = (g * 150) >> 8;
+          b = (b * 150) >> 8;
+          strip->setPixelColor(pixelIndices[i], strip->Color(r, g, b));
+        }
+      }
 
-    // 2. Position berechnen
-    if (!reverse) {
-      position++;
-      if (position >= length) position = 0;
-    } else {
-      position--;
-      if (position < 0) position = length - 1;
-    }
+      // 2. Position berechnen
+      if (!reverse) {
+        position++;
+        if (position >= effectiveLength) position = 0;
+      } else {
+        position--;
+        if (position < 0) position = effectiveLength - 1;
+      }
 
-    // 3. Das "neue" Pixel voll einschalten (Kopf des Schweifs)
-    strip->setPixelColor(pixelIndices[position], color);
+      // 3. Kopf einschalten
+      strip->setPixelColor(pixelIndices[position], color);
+    }
+    
+    // Letztes Pixel immer voll an, wenn excludeLast aktiv
+    if (excludeLast && length > 0) {
+      strip->setPixelColor(pixelIndices[length - 1], color);
+    }
   }
 }
 

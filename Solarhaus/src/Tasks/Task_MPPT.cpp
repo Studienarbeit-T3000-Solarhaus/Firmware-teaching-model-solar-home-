@@ -55,8 +55,6 @@ void Task_MPPT(void* pvParameters) {
         float currentSolarVoltage = 0.0;
         float outputCapVoltage = 0.0;
         
-        bool autoMode = true;
-        int manualTarget = 100;
         bool dataValid = false;
 
         // --- DATEN HOLEN ---
@@ -69,10 +67,6 @@ void Task_MPPT(void* pvParameters) {
             // Bitte prüfen, wo dein Ausgang angeschlossen ist! 
             // Ich nehme hier Index 1 an (Channel 2 des INA).
             outputCapVoltage = sysState.busVoltage[1]; 
-            
-            // Webserver Steuerung
-            autoMode = sysState.mppt_auto_mode;
-            manualTarget = sysState.manual_pwm_value;
             
             dataValid = true;
             xSemaphoreGive(dataMutex);
@@ -92,66 +86,53 @@ void Task_MPPT(void* pvParameters) {
                 continue; 
             }
 
-            // --- STEUERUNG ---
-            if (!autoMode) {
-                // *** MANUELLER MODUS (Slider) ***
+            // --- STEUERUNG: AUTO MPPT (Spannungs-Sweep mit Peak-Tracking) ---
                 
-                // Der Slider kommt vom Webserver (0-255).
-                // Wir müssen ihn sicher begrenzen.
-                if (manualTarget < PWM_LIMIT_MAX_VOLTAGE) manualTarget = PWM_LIMIT_MAX_VOLTAGE; // Nicht unter 52
-                if (manualTarget > PWM_LIMIT_MIN_VOLTAGE) manualTarget = PWM_LIMIT_MIN_VOLTAGE; // Nicht über 105
-                
-                currentDutyCycle = manualTarget;
-                
-            } else {
-                // *** AUTO MPPT (Spannungs-Sweep mit Peak-Tracking) ***
-                
-                // 1. Wenn Solarspannung kritisch tief (< 3.0V), Last wegnehmen
-                if (currentSolarVoltage < 3.0) {
-                    currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE; // Buck fast aus
-                    mpptState = SWEEP;                        // Neustart des Sweeps beim nächsten Mal
-                    sweepPwm = PWM_LIMIT_MAX_VOLTAGE;         // Beginne wieder bei hoher Last
-                    maxPowerDuringSweep = 0.0;
-                    stepsSinceMax = 0;
+            // 1. Wenn Solarspannung kritisch tief (< 3.0V), Last wegnehmen
+            if (currentSolarVoltage < 3.0) {
+                currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE; // Buck fast aus
+                mpptState = SWEEP;                        // Neustart des Sweeps beim nächsten Mal
+                sweepPwm = PWM_LIMIT_MAX_VOLTAGE;         // Beginne wieder bei hoher Last
+                maxPowerDuringSweep = 0.0;
+                stepsSinceMax = 0;
+            } 
+            else {
+                if (mpptState == SWEEP) {
+                    currentDutyCycle = sweepPwm;
+
+                    // 2. Leistung auswerten und sich den besten Wert "merken"
+                    if (currentSolarPower > maxPowerDuringSweep) {
+                        maxPowerDuringSweep = currentSolarPower;
+                        bestPwm = sweepPwm;
+                        stepsSinceMax = 0; // Zähler zurücksetzen, da neues Maximum gefunden
+                    } else if (maxPowerDuringSweep > 5.0) {
+                        // Leistung sinkt wieder (und wir haben schon ein echtes Maximum > 5mW gesehen)
+                        stepsSinceMax++;
+                    }
+
+                    // 3. Spannung der Solarzelle kontinuierlich von "null weg" erhöhen 
+                    // (PWM erhöhen = weniger Last = höhere Solarspannung)
+                    sweepPwm += 1; 
+
+                    // 4. Abbruchkriterium: 
+                    // Entweder wir stoßen ans Limit, oder wir haben "noch etwas weiter gesucht" 
+                    // (z.B. 5 PWM-Schritte) und die Leistung sinkt nur noch ab.
+                    if (sweepPwm > PWM_LIMIT_MIN_VOLTAGE || stepsSinceMax >= 5) {
+                        mpptState = TRACK;
+                        currentDutyCycle = bestPwm; // Zum gemerkten besten Leistungs-Wert springen
+                    }
                 } 
-                else {
-                    if (mpptState == SWEEP) {
-                        currentDutyCycle = sweepPwm;
+                else if (mpptState == TRACK) {
+                    // 5. Auf dem besten Punkt arbeiten
+                    currentDutyCycle = bestPwm;
 
-                        // 2. Leistung auswerten und sich den besten Wert "merken"
-                        if (currentSolarPower > maxPowerDuringSweep) {
-                            maxPowerDuringSweep = currentSolarPower;
-                            bestPwm = sweepPwm;
-                            stepsSinceMax = 0; // Zähler zurücksetzen, da neues Maximum gefunden
-                        } else if (maxPowerDuringSweep > 5.0) {
-                            // Leistung sinkt wieder (und wir haben schon ein echtes Maximum > 5mW gesehen)
-                            stepsSinceMax++;
-                        }
-
-                        // 3. Spannung der Solarzelle kontinuierlich von "null weg" erhöhen 
-                        // (PWM erhöhen = weniger Last = höhere Solarspannung)
-                        sweepPwm += 1; 
-
-                        // 4. Abbruchkriterium: 
-                        // Entweder wir stoßen ans Limit, oder wir haben "noch etwas weiter gesucht" 
-                        // (z.B. 5 PWM-Schritte) und die Leistung sinkt nur noch ab.
-                        if (sweepPwm > PWM_LIMIT_MIN_VOLTAGE || stepsSinceMax >= 5) {
-                            mpptState = TRACK;
-                            currentDutyCycle = bestPwm; // Zum gemerkten besten Leistungs-Wert springen
-                        }
-                    } 
-                    else if (mpptState == TRACK) {
-                        // 5. Auf dem besten Punkt arbeiten
-                        currentDutyCycle = bestPwm;
-
-                        // Wenn die Leistung am optimalen Punkt plötzlich stark einbricht 
-                        // (z. B. durch eine neue Wolke), starten wir die Suche komplett neu.
-                        if (currentSolarPower < maxPowerDuringSweep * 0.8) {
-                            mpptState = SWEEP;
-                            sweepPwm = PWM_LIMIT_MAX_VOLTAGE;
-                            maxPowerDuringSweep = 0.0;
-                            stepsSinceMax = 0;
-                        }
+                    // Wenn die Leistung am optimalen Punkt plötzlich stark einbricht 
+                    // (z. B. durch eine neue Wolke), starten wir die Suche komplett neu.
+                    if (currentSolarPower < maxPowerDuringSweep * 0.8) {
+                        mpptState = SWEEP;
+                        sweepPwm = PWM_LIMIT_MAX_VOLTAGE;
+                        maxPowerDuringSweep = 0.0;
+                        stepsSinceMax = 0;
                     }
                 }
             }
@@ -163,15 +144,9 @@ void Task_MPPT(void* pvParameters) {
 
             // --- AUSGABE ---
             ledcWrite(MPPT_PWM_CHANNEL, currentDutyCycle);
-            
-            // Optional: PWM Wert in sysState schreiben für Debugging/Webseite
-            // if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-            //    sysState.debug_pwm = currentDutyCycle; // Müsste in shared_data.hpp ergänzt werden
-            //    xSemaphoreGive(dataMutex);
-            // }
         }
+
         #ifdef DEBUG
-        
         // Debug-Ausgabe
         Serial.print("MPPT | Solar: ");
         Serial.print(currentSolarVoltage, 2);

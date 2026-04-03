@@ -91,8 +91,6 @@ struct SystemState {
     int targetCycles;       // Wie viele Zyklen sollen laufen?
     int currentCycle;       // Wo sind wir gerade?
 
-    bool mppt_auto_mode = true; // true = MPPT Algorithmus, false = Manueller Slider
-    int manual_pwm_value = 240; // Startwert für manuell (240 = wenig Leistung/Start)
     // Irgendwo innerhalb deiner struct SystemState:
     bool mpptBypassOn = false;
     float adcBatteryPercentage = 0.0f; 

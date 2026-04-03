@@ -14,17 +14,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; display: flex; justify-content: center; }
         .card { background: white; border-radius: 15px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 100%; max-width: 600px; overflow: hidden; text-align: center; display: flex; flex-direction: column; }
         
-        .slider-container { margin: 20px; padding: 20px; border: 1px solid #444; border-radius: 10px; }
-        .slider { -webkit-appearance: none; width: 100%; height: 15px; border-radius: 5px; background: #d3d3d3; outline: none; }
-        .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 25px; height: 25px; border-radius: 50%; background: #4CAF50; cursor: pointer; }
-        .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider-switch { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; -webkit-transition: .4s; transition: .4s; border-radius: 34px; }
-        .slider-switch:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; -webkit-transition: .4s; transition: .4s; border-radius: 50%; }
-        input:checked + .slider-switch { background-color: #2196F3; }
-        input:checked + .slider-switch:before { -webkit-transform: translateX(26px); -ms-transform: translateX(26px); transform: translateX(26px); }
-
-        /* Header & Tabs */
         .header { background-color: #333; color: white; padding: 20px 20px 0 20px; }
         h1 { margin: 0 0 15px 0; font-size: 24px; }
 
@@ -181,22 +170,6 @@ const char index_html[] PROGMEM = R"rawliteral(
                     </div>
                 </div>
             </div>
-            <div class="card">
-  <h2>MPPT Steuerung</h2>
-  
-  <div class="slider-container">
-    <span>Modus: <strong id="modeLabel">AUTO</strong></span>
-    <label class="switch">
-      <input type="checkbox" id="modeSwitch" onchange="toggleMode()">
-      <span class="slider-switch"></span>
-    </label>
-    <br><br>
-    
-    <label for="pwmSlider">Manual PWM (Injektion): <span id="pwmValue">0</span></label>
-    <input type="range" min="0" max="255" value="0" class="slider" id="pwmSlider" oninput="updateSlider(this.value)" disabled>
-    <p><small>0 = Max Power (6.6V) | 255 = Min Power (Buck aus)</small></p>
-  </div>
-</div>
         </div>
 
         <div id="DayNightCycle" class="tab-content">
@@ -740,27 +713,6 @@ const char index_html[] PROGMEM = R"rawliteral(
 
             const url = `/api/sim?active=true&dayTime=${dayT}&nightTime=${nightT}&cycles=${cycles}&solar=${solar}&bat=${bat}&cA=${cA}&cS=${cS}&cE=${cE}&nA=${nA}&nS=${nS}&nE=${nE}&hA=${hA}&hS=${hS}&hE=${hE}`;
             fetch(url);
-        }
-
-        var isAuto = true;
-
-        function toggleMode() {
-            var checkBox = document.getElementById("modeSwitch");
-            isAuto = !checkBox.checked; 
-            
-            document.getElementById("modeLabel").innerText = isAuto ? "AUTO" : "MANUELL";
-            document.getElementById("pwmSlider").disabled = isAuto;
-            
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "/setMode?auto=" + (isAuto ? "1" : "0"), true);
-            xhr.send();
-        }
-
-        function updateSlider(val) {
-            document.getElementById("pwmValue").innerText = val;
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "/setPWM?value=" + val, true);
-            xhr.send();
         }
 
         function toggleMpptBypass() {

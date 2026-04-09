@@ -9,9 +9,18 @@
 #include <Adafruit_NeoPixel.h>
 #include "Config.hpp"
 
-
-
-
+// Hilfsfunktion für fatalen Fehler
+void handleFatalI2CError() {
+    bool state = false;
+    while(1) {
+        state = !state;
+        for(int i = 0; i < NUM_NEOPIXELS; i++) {
+            Neopixels.setPixelColor(i, state ? Neopixels.Color(255, 0, 0) : 0);
+        }
+        Neopixels.show();
+        delay(200); // Schnelles Blinken (200ms an, 200ms aus)
+    }
+}
 
 void Task_Startup(void* pvParameters) {
     #ifdef DEBUG
@@ -20,61 +29,58 @@ void Task_Startup(void* pvParameters) {
     Serial.println("Startup Task is running...");
     #endif
      
-    // Enable Pins
+    // 1. Stromversorgung für Peripherie aktivieren
     pinMode(ENABLE_3V3_PIN, OUTPUT);
     digitalWrite(ENABLE_3V3_PIN, HIGH);
 
     pinMode(ENABLE_BATTERY_PIN, OUTPUT);
     digitalWrite(ENABLE_BATTERY_PIN, HIGH);
-    delay(100); // Short delay to ensure stable power before initializing peripherals
-
-    // Initialize I2C and peripherals
-    if(xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
-        // Initialize I2C
-        Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, 1700000);
-        delay(100); // Short delay to ensure I2C bus is ready
-        
-        if (!GPIOExpander.begin_I2C()) {
-            //while (1); // TODO Error handling
-        }
-        #ifdef DEBUG
-        printGPIOExpanderStatus();
-        #endif
-        if (!CurrentSensor.begin()) {
-            //while (1); // TODO Error handling
-            Serial.println("Failed to initialize INA3221");
-        }
-        #ifdef DEBUG
-        for (int i = 0; i <= 2; i++) {
-        float busVoltage = CurrentSensor.getBusVoltage(i);   
-        float current_mA = CurrentSensor.getCurrentAmps(i) * 1000; // Convert to mA
-            
-        Serial.print("Channel "); Serial.print(i);
-        Serial.print(": "); Serial.print(busVoltage); Serial.print(" V, ");
-        Serial.print(current_mA); Serial.print(" mA");
-        float Power_mW = busVoltage * (current_mA / 1000.0) * 1000; // Power in mW
-        Serial.print(", Power: "); Serial.print(Power_mW); Serial.println(" mW");
-        }
-        #endif
-        xSemaphoreGive(i2cMutex);
-    } else {
-        #ifdef DEBUG
-        Serial.println("Failed to acquire I2C mutex in Startup Task");
-        #endif
-        while (1); // TODO Error handling for mutex timeout
-    }
-    // Set all GPIOs to LOW to ensure a known state at startup
-  
-    // Neopixel Pin
+    
+    // Neopixel Pin initialisieren
     pinMode(NEOPIXEL_PIN, OUTPUT);
     digitalWrite(NEOPIXEL_PIN, LOW);
 
-    // Wakeup Pin 
+    // 2. NeoPixel SOFORT initialisieren (für Fehlermeldungen)
+    Neopixels.begin();
+    Neopixels.setBrightness(255);
+    Neopixels.clear();
+    Neopixels.show();
+
+    delay(100); // Stabilisierung abwarten
+
+    // 3. I2C und Peripherie initialisieren
+    bool i2cFatal = false;
+
+    if(xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, 1700000);
+        delay(100);
+        
+        if (!GPIOExpander.begin_I2C()) {
+            i2cFatal = true;
+            Serial.println("FATAL: MCP23017 not found!");
+        }
+        
+        if (!i2cFatal && !CurrentSensor.begin()) {
+            i2cFatal = true;
+            Serial.println("FATAL: INA3221 not found!");
+        }
+        
+        xSemaphoreGive(i2cMutex);
+    } else {
+        i2cFatal = true;
+    }
+
+    // Wenn I2C Fehler -> Sofort blinken und hier stoppen!
+    if (i2cFatal) {
+        handleFatalI2CError();
+    }
+
+    #ifdef DEBUG
+    printGPIOExpanderStatus();
+    #endif
+
+    // Normaler Startup geht weiter...
     pinMode(WAKEUP_PIN, INPUT_PULLUP); 
-
-    
-
-    // MPPT PWM Pin
     pinMode(MPPT_PWM_PIN, OUTPUT);
     digitalWrite(MPPT_PWM_PIN, LOW);
 
@@ -89,24 +95,15 @@ void Task_Startup(void* pvParameters) {
       GPIOExpander.digitalWrite(GPIOExpanderPins[i], LOW);
     }
 
-    // Enable Buck/Boost
-    pinMode(ENABLE_BUCK_BOOST_CONVERTER, OUTPUT);
     GPIOExpander.digitalWrite(ENABLE_BUCK_BOOST_CONVERTER, HIGH); 
-
-    // Enable MPPT
-    pinMode(BYPASS_MPPT, OUTPUT);
     GPIOExpander.digitalWrite(BYPASS_MPPT, LOW);
-    // Initialize NeoNeopixels
-    if (xSemaphoreTake(NeoPixelMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-    Neopixels.begin(); 
-    Neopixels.clear(); 
-    Neopixels.show();
+
+    
+
     #ifdef DEBUG
-    Serial.println("NeoNeopixels initialized");
-    for(int i=0; i<5; i++) {
-        for(int i=0; i<NUM_NEOPIXELS; i++) {
-            Neopixels.setPixelColor(i, Neopixels.Color(0, 150, 0));
-        }
+    Serial.println("NeoNeopixels Startup-Check (Green)");
+    for(int i=0; i<3; i++) {
+        for(int j=0; j<NUM_NEOPIXELS; j++) Neopixels.setPixelColor(j, Neopixels.Color(0, 100, 0));
         Neopixels.show();
         vTaskDelay(pdMS_TO_TICKS(100));
         Neopixels.clear();
@@ -114,9 +111,8 @@ void Task_Startup(void* pvParameters) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     #endif
-    xSemaphoreGive(NeoPixelMutex);
-    }
 
+    // Tasks erst jetzt erstellen
     xTaskCreate(Task_Power_Sensing, "Power Sensing Task", STACK_SIZE_POWER_SENSING_TASK, NULL, PRIORITY_POWER_SENSING_TASK, &TaskHandle_Power_Sensing);
     xTaskCreate(Task_Control_GPIO, "GPIO Control Task", STACK_SIZE_CONTROL_GPIO_TASK, NULL, PRIORITY_CONTROL_GPIO_TASK, &TaskHandle_Control_GPIO);
     xTaskCreate(Task_Neopixel, "Neopixel Task", STACK_SIZE_NEOPIXEL_TASK, NULL, PRIORITY_NEOPIXEL_TASK, &TaskHandle_Neopixel);
@@ -132,8 +128,6 @@ void Task_Startup(void* pvParameters) {
 
     vTaskDelete(NULL);
 }
-
-
 
 void printGPIOExpanderStatus() {
   int pins[] = {SOLAR_CELL_1, SOLAR_CELL_2, SOLAR_CELL_3, SOLAR_CELL_4, 

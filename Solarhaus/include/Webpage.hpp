@@ -214,7 +214,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                     </div>
 
                     <hr style="border:0; border-top:1px solid #eee; margin: 15px 0;">
-                    <div style="margin-bottom:10px; color:#0077BB;"><strong>Consumer Time Schedule (Fictional Time):</strong></div>
+                    <div style="margin-bottom:10px; color:#0077BB;"><strong>Consumer Time Schedule:</strong></div>
 
                     <div style="background:#f9f9f9; padding:10px; border-radius:8px; margin-bottom:10px; border:1px solid #eee;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
@@ -289,7 +289,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         <div id="SystemInfo" class="tab-content">
             <div class="section-title">System Metrics</div>
             <table class="info-table">
-                ><td>Akkustand</td><td id="adcDisp">0.00 V</td></tr>
+                <td>Battery level</td><td id="adcDisp">0.00 V</td></tr>
                 <tr><td>Bus Voltage (Solar)</td><td id="info_v1">0.00 V</td></tr>
                 <tr><td>Bus Voltage (Battery)</td><td id="info_v2">0.00 V</td></tr>
                 <tr><td>Bus Voltage (Load)</td><td id="info_v3">0.00 V</td></tr>
@@ -300,8 +300,8 @@ const char index_html[] PROGMEM = R"rawliteral(
 
             <div class="control-card">
     <h3>MPPT Bypass</h3>
-    <p>Status: <span id="mppt-bypass-status">Aus</span></p>
-    <button id="btn-mppt-bypass" onclick="toggleMpptBypass()">Bypass aktivieren</button>
+    <p>Status: <span id="mppt-bypass-status">Off</span></p>
+    <button id="btn-mppt-bypass" onclick="toggleMpptBypass()">Enable Bypass</button>
 </div>
             <br>
             <div style="font-size:12px; color:#999; text-align:center;">
@@ -723,12 +723,12 @@ const char index_html[] PROGMEM = R"rawliteral(
                 const btn = document.getElementById('btn-mppt-bypass');
 
                 if(state === "1") {
-                    statusSpan.innerText = "Aktiv";
-                    btn.innerText = "Bypass deaktivieren";
+                    statusSpan.innerText = "Active";
+                    btn.innerText = "Disable Bypass";
                     statusSpan.style.color = "green";
                 } else {
-                    statusSpan.innerText = "Aus";
-                    btn.innerText = "Bypass aktivieren";
+                    statusSpan.innerText = "Off";
+                    btn.innerText = "Enable Bypass";
                     statusSpan.style.color = "red";
                 }
             });

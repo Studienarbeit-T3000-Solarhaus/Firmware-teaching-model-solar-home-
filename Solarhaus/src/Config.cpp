@@ -13,6 +13,7 @@ const char* password = "";
 const uint32_t ColorCurrentflow = 0xFFFF00; // Gelb
 const uint32_t ColorChargeCaps  = 0x00FF00; // Grün
 const uint32_t ColorDischargeCaps = 0xFF0000; // Rot
+const uint32_t ColorWhite = 0xFFFFFF; // Weiß
 
 // Speicher für die Arrays reservieren
 LedSegment* AllSolarModulesIndices;

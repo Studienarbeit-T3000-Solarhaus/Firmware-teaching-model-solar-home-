@@ -12,7 +12,7 @@ void Task_Neopixel(void* pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
     if (xSemaphoreTake(NeoPixelMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         Neopixels.begin();
-        Neopixels.setBrightness(10);
+        Neopixels.setBrightness(255); // Global auf Max, Segmente dimmen intern
         Neopixels.clear();
         Neopixels.show();
         xSemaphoreGive(NeoPixelMutex);
@@ -33,7 +33,8 @@ void Task_Neopixel(void* pvParameters) {
     constantLoad = new LedSegment(&Neopixels, IndicesConstantLoad, LengthConstantLoad, ColorCurrentflow);
     nightLoad = new LedSegment(&Neopixels, IndicesNightLoad, LengthNightLoad, ColorCurrentflow);
     nightLoad->setExcludeLast(true); // Letzte LED leuchtet statisch als Lampe
-    nightLoad->setPulse(true);       // Die LED davor pulsiert
+    nightLoad->setLastPixelColor(ColorWhite); // Nur die Lampe leuchtet weiß
+    nightLoad->setPulse(true);       // Die LED davor pulsiert (in Gelb/ColorCurrentflow)
     heavyLoad = new LedSegment(&Neopixels, IndicesHeavyLoad, LengthHeavyLoad, ColorCurrentflow);
     
     SystemState currentState;

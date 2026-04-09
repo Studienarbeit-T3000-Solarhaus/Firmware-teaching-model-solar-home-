@@ -18,6 +18,7 @@ extern Adafruit_NeoPixel Neopixels;
 extern const uint32_t ColorCurrentflow;
 extern const uint32_t ColorChargeCaps;
 extern const uint32_t ColorDischargeCaps;
+extern const uint32_t ColorWhite;
 
 // --- LED Segmente Zeiger ---
 

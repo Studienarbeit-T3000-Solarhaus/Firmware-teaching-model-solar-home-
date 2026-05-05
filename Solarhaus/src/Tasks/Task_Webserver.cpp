@@ -11,8 +11,8 @@ AsyncWebServer server(80);
 
 SystemState localSystemState;
 
+// Hosts a WiFi AP with async web server for monitoring and controlling the solar home system
 void Task_Webserver(void* pvParameters) {
-    // 1. Setup WiFi
     WiFi.softAP(ssid, password);
     IPAddress IP = WiFi.softAPIP();
     
@@ -21,14 +21,12 @@ void Task_Webserver(void* pvParameters) {
     Serial.println(IP);
     #endif
 
-    // 2. Define Routes
-
-    // Serve HTML
+    // Serve the single-page web UI
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
         request->send(200, "text/html", index_html);
     });
 
-    // Status API (JSON)
+    // JSON status endpoint: reads live sensor data and simulation state
     server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request){
         String json = "{";
         
@@ -40,20 +38,16 @@ void Task_Webserver(void* pvParameters) {
         bool heavyLoadOn = false;
 
         if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(200))) {
-            // Read INA3221
-            // Channel 0 (Solar), Channel 1 (Battery), Channel 2 (Load)
             v1 = CurrentSensor.getBusVoltage(0); i1 = CurrentSensor.getCurrentAmps(0) * 1000;
             v2 = CurrentSensor.getBusVoltage(1); i2 = CurrentSensor.getCurrentAmps(1) * 1000;
             v3 = CurrentSensor.getBusVoltage(2); i3 = CurrentSensor.getCurrentAmps(2) * 1000;
 
-            // Read GPIO States
             for(int i=0; i<4; i++) if(GPIOExpander.digitalRead(SOLAR_CELL_1 + i)) solarCount++;
             if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
             localSystemState = sysState;
             xSemaphoreGive(dataMutex);
             }
 
-            // NEU: BatCount direkt aus der auf der Webseite eingestellten Variablen auslesen
             batCount = localSystemState.batteryActiveCount;
             
             constLoadOn = GPIOExpander.digitalRead(CONSTANT_LOAD);
@@ -68,8 +62,7 @@ void Task_Webserver(void* pvParameters) {
             xSemaphoreGive(dataMutex);
         }
 
-        // --- NEU: Fortschritt berechnen ---
-        // --- NEU: Fortschritt und fiktive Uhrzeit berechnen ---
+        // Compute simulation progress and simulated 24h clock
         float progress = 0.0;
         int simHour = 0;
         int simMinute = 0;
@@ -84,20 +77,17 @@ void Task_Webserver(void* pvParameters) {
                 if (progress > 1.0) progress = 1.0;
             }
 
-            // Fiktive 24h-Zeit berechnen
             float simTimeFloat = 0;
             if (localSystemState.isDayPhase) {
-                simTimeFloat = 6.0 + (progress * 12.0); // Tag: 06:00 bis 18:00
+                simTimeFloat = 6.0 + (progress * 12.0);
             } else {
-                simTimeFloat = 18.0 + (progress * 12.0); // Nacht: 18:00 bis 06:00
-                if (simTimeFloat >= 24.0) simTimeFloat -= 24.0; // Über Mitternacht
+                simTimeFloat = 18.0 + (progress * 12.0);
+                if (simTimeFloat >= 24.0) simTimeFloat -= 24.0;
             }
             simHour = (int)simTimeFloat;
             simMinute = (int)((simTimeFloat - simHour) * 60);
         }
 
-        // JSON zusammenbauen
-        // Allgemeine Statuswerte
         json += "\"bus_voltage\":" + String(localSystemState.busVoltage[1], 3) + ",";
         json += "\"adc_battery_voltage\":" + String(localSystemState.adcBatteryVoltage, 2) + ",";
         json += "\"adc_battery_percentage\":" + String(localSystemState.adcBatteryPercentage, 1) + ",";
@@ -110,13 +100,9 @@ void Task_Webserver(void* pvParameters) {
         json += "\"sim_progress\":" + String(progress, 3) + ",";
         json += "\"sim_hour\":" + String(simHour) + ",";
         json += "\"sim_minute\":" + String(simMinute) + ",";
-        // Status der Verbraucher
         json += "\"const_on\":" + String(constLoadOn ? "true" : "false") + ",";
         json += "\"night_on\":" + String(nightLoadOn ? "true" : "false") + ",";
         json += "\"heavy_on\":" + String(heavyLoadOn ? "true" : "false") + ",";
-
-        // Messwerte (Voltage, mA, mW)
-        // Hinweis: ch1 = Solar (Ch0), ch2 = Battery (Ch1), ch3 = Load (Ch2)
         json += "\"ch1_v\":" + String(v1, 2) + ", \"ch1_ma\":" + String(i1, 0) + ", \"ch1_mw\":" + String(v1 * i1, 0) + ",";
         json += "\"ch2_v\":" + String(v2, 2) + ", \"ch2_ma\":" + String(i2, 0) + ", \"ch2_mw\":" + String(v2 * i2, 0) + ",";
         json += "\"ch3_v\":" + String(v3, 2) + ", \"ch3_ma\":" + String(i3, 0) + ", \"ch3_mw\":" + String(v3 * i3, 0);
@@ -125,6 +111,7 @@ void Task_Webserver(void* pvParameters) {
         request->send(200, "application/json", json);
     });
 
+    // Solar/battery count control with safety interlocks (no solar without battery)
     server.on("/api/control", HTTP_GET, [](AsyncWebServerRequest *request){
         if (request->hasParam("type") && request->hasParam("action")) {
             String type = request->getParam("type")->value();
@@ -147,14 +134,11 @@ void Task_Webserver(void* pvParameters) {
                 if (newCount > 4) newCount = 4;
                 if (newCount < 0) newCount = 0;
 
-                // --- NEUE LOGIK: Abhängigkeit zwischen Solar und Batterie ---
                 if (type == "solar") {
-                    // Verhindere das Einschalten von Solar, wenn keine Batterie aktiv ist
                     if (sysState.batteryActiveCount == 0 && newCount > 0) {
                         newCount = 0; 
                     }
                 } else if (type == "battery") {
-                    // Wenn die letzte Batterie ausgeschaltet wird, schalte auch alle Solarzellen und Lasten aus
                     if (newCount == 0) {
                         sysState.solarActiveCount = 0;
                         sysState.constantLoadOn = false;
@@ -162,7 +146,6 @@ void Task_Webserver(void* pvParameters) {
                         sysState.heavyLoadOn = false;
                     }
                 }
-                // ------------------------------------------------------------
 
                 *countPtr = newCount;
                 xSemaphoreGive(dataMutex);
@@ -171,7 +154,7 @@ void Task_Webserver(void* pvParameters) {
         request->send(200, "text/plain", "OK");
     });
 
-    // Toggle Loads
+    // Load toggle endpoint (blocked during simulation or when no battery is active)
     server.on("/api/toggle", HTTP_GET, [](AsyncWebServerRequest *request){
         if (request->hasParam("load")) {
             String load = request->getParam("load")->value();
@@ -182,14 +165,11 @@ void Task_Webserver(void* pvParameters) {
                     request->send(403, "text/plain", "Simulation Active");
                     return;
                 }
-                // --- NEU: Verhindere das Einschalten, wenn keine Batterie da ist ---
                 if (sysState.batteryActiveCount == 0) {
-                    // Zur Sicherheit alles auf false zwingen
                     sysState.constantLoadOn = false;
                     sysState.nightLoadOn = false;
                     sysState.heavyLoadOn = false;
                 } else {
-                    // Normales Umschalten erlauben
                     if (load == "const") {
                         sysState.constantLoadOn = !sysState.constantLoadOn;
                     } else if (load == "night") { 
@@ -198,14 +178,13 @@ void Task_Webserver(void* pvParameters) {
                         sysState.heavyLoadOn = !sysState.heavyLoadOn;
                     }
                 }
-                // -------------------------------------------------------------------
                 xSemaphoreGive(dataMutex);
             }
         }
         request->send(200, "text/plain", "OK");
     });
 
-    // Simulation Control API
+    // Simulation start/stop: parses config params, schedules, and initializes day/night cycling
     server.on("/api/sim", HTTP_GET, [](AsyncWebServerRequest *request){
         if (request->hasParam("active")) {
             bool setActive = (request->getParam("active")->value() == "true");
@@ -213,48 +192,39 @@ void Task_Webserver(void* pvParameters) {
             if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
                 sysState.isSimActive = setActive;
 
-                // Nur wenn wir Starten (active=true), lesen wir die Konfig-Werte ein
                 if (setActive) {
                     if(request->hasParam("dayTime")) sysState.dayDurationSec = request->getParam("dayTime")->value().toInt();
                     if(request->hasParam("nightTime")) sysState.nightDurationSec = request->getParam("nightTime")->value().toInt();
                     
-                    // --- NEU: Zyklen & Hardware Config direkt aus Params ---
                     if(request->hasParam("cycles")) sysState.targetCycles = request->getParam("cycles")->value().toInt();
                     if(request->hasParam("solar")) sysState.configSolarCount = request->getParam("solar")->value().toInt();
                     if(request->hasParam("bat")) sysState.configBatteryCount = request->getParam("bat")->value().toInt();
-                    // -------------------------------------------------------
-                    // --- NEU: Zeitpläne auslesen ---
-                    // Constant Load
+
+                    // Parse load schedule parameters (active flag, start/end times)
                     if(request->hasParam("cA")) sysState.schedConstActive = (request->getParam("cA")->value() == "true");
                     if(request->hasParam("cS")) { String s = request->getParam("cS")->value(); sysState.schedConstStartH = s.substring(0, 2).toInt(); sysState.schedConstStartM = s.substring(3, 5).toInt(); }
                     if(request->hasParam("cE")) { String s = request->getParam("cE")->value(); sysState.schedConstEndH = s.substring(0, 2).toInt(); sysState.schedConstEndM = s.substring(3, 5).toInt(); }
                     
-                    // Night Load
                     if(request->hasParam("nA")) sysState.schedNightActive = (request->getParam("nA")->value() == "true");
                     if(request->hasParam("nS")) { String s = request->getParam("nS")->value(); sysState.schedNightStartH = s.substring(0, 2).toInt(); sysState.schedNightStartM = s.substring(3, 5).toInt(); }
                     if(request->hasParam("nE")) { String s = request->getParam("nE")->value(); sysState.schedNightEndH = s.substring(0, 2).toInt(); sysState.schedNightEndM = s.substring(3, 5).toInt(); }
                     
-                    // Heavy Load
                     if(request->hasParam("hA")) sysState.schedHeavyActive = (request->getParam("hA")->value() == "true");
                     if(request->hasParam("hS")) { String s = request->getParam("hS")->value(); sysState.schedHeavyStartH = s.substring(0, 2).toInt(); sysState.schedHeavyStartM = s.substring(3, 5).toInt(); }
                     if(request->hasParam("hE")) { String s = request->getParam("hE")->value(); sysState.schedHeavyEndH = s.substring(0, 2).toInt(); sysState.schedHeavyEndM = s.substring(3, 5).toInt(); }
 
-                    // --- NEU: Log leeren beim Start ---
                     if (xSemaphoreTake(logMutex, pdMS_TO_TICKS(200))) {
                         simulationLog.clear();
                         xSemaphoreGive(logMutex);
                     }
-                    // ---------------------------------
 
-                    // Start-Initialisierung
                     sysState.simTimerStart = millis();
-                    sysState.isDayPhase = true;      // Start mit Tag
-                    sysState.currentCycle = 1;       // Wir starten im 1. Zyklus
+                    sysState.isDayPhase = true;
+                    sysState.currentCycle = 1;
                     
-                    // Hardware sofort setzen für den Start
                     sysState.solarActiveCount = sysState.configSolarCount;
                     sysState.batteryActiveCount = sysState.configBatteryCount;
-                    sysState.nightLoadOn = false;    // Licht aus am Tag
+                    sysState.nightLoadOn = false;
                     sysState.constantLoadOn = false;
                 }
                 
@@ -264,15 +234,13 @@ void Task_Webserver(void* pvParameters) {
         request->send(200, "text/plain", "OK");
     });
 
-
-    // History API
+    // Simulation history: returns logged data points as compact JSON arrays
     server.on("/api/history", HTTP_GET, [](AsyncWebServerRequest *request){
         String json = "{\"data\":[";
         
         if (xSemaphoreTake(logMutex, pdMS_TO_TICKS(500))) {
             for (size_t i = 0; i < simulationLog.size(); i++) {
                 json += "[";
-                // Um Platz zu sparen, senden wir Arrays statt Objekte: [vSolar, iSolar, vBat, iBat]
                 json += String(simulationLog[i].vSolar, 2) + ",";
                 json += String(simulationLog[i].iSolar, 0) + ",";
                 json += String(simulationLog[i].vBat, 2) + ",";
@@ -286,15 +254,12 @@ void Task_Webserver(void* pvParameters) {
         request->send(200, "application/json", json);
     });
 
+    // MPPT bypass relay toggle
     server.on("/toggle_mppt_bypass", HTTP_GET, [](AsyncWebServerRequest *request){
         if(xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-            // Status umkehren
             sysState.mpptBypassOn = !sysState.mpptBypassOn; 
-            
-            // Neuen Status als String zurücksenden ("1" für an, "0" für aus)
             String responseStr = sysState.mpptBypassOn ? "1" : "0";
             xSemaphoreGive(dataMutex);
-            
             request->send(200, "text/plain", responseStr);
         } else {
             request->send(500, "text/plain", "Mutex Error");

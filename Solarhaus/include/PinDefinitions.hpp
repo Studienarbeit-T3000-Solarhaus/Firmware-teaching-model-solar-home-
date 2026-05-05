@@ -38,7 +38,7 @@
 
 
 
-// Mosfet control pins connected to MCP23017 GPIOs
+// Pin definitions for the MCP23017 I/O Expander
 #define SOLAR_CELL_1 0
 #define SOLAR_CELL_2 1
 #define SOLAR_CELL_3 2

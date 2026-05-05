@@ -1,18 +1,16 @@
 #include "shared_data.hpp"
 #include "tasks.hpp"
 
-// Mutexes
+// FreeRTOS synchronization primitives for shared resource access
 SemaphoreHandle_t i2cMutex = NULL;
 SemaphoreHandle_t dataMutex = NULL;
-SemaphoreHandle_t logMutex = NULL; // <--- NEU
+SemaphoreHandle_t logMutex = NULL;
 SemaphoreHandle_t NeoPixelMutex = NULL; 
 
-// Log Vektor
-std::vector<SimDataPoint> simulationLog; // <--- NEU
+// Simulation telemetry buffer (consumed by /api/history endpoint)
+std::vector<SimDataPoint> simulationLog;
 
-
-
-// Task Handles
+// Task handles for stack monitoring and lifecycle management
 TaskHandle_t TaskHandle_Startup = NULL;
 TaskHandle_t TaskHandle_Webserver = NULL;
 TaskHandle_t TaskHandle_Power_Sensing = NULL;

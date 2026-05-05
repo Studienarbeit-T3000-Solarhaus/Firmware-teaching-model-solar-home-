@@ -11,16 +11,14 @@
 extern const char* ssid;
 extern const char* password;
 
-// --- Neopixel Objekt (Global verfügbar machen) ---
 extern Adafruit_NeoPixel Neopixels; 
 
-// --- Farben (extern machen) ---
 extern const uint32_t ColorCurrentflow;
 extern const uint32_t ColorChargeCaps;
 extern const uint32_t ColorDischargeCaps;
 extern const uint32_t ColorWhite;
 
-// --- LED Segmente Zeiger ---
+// LED Segment Pointer 
 
 extern LedSegment* AllSolarModulesIndices;
 extern LedSegment* SolarModules[4];
@@ -33,8 +31,7 @@ extern LedSegment* constantLoad;
 extern LedSegment* nightLoad;
 extern LedSegment* heavyLoad;
 
-// --- Längen und Startpositionen ---
-
+// Length and Startindices 
 
 extern const int IndicesAllSolarModules[19];
 extern const int* const solarModulesIndices[4];
@@ -46,7 +43,6 @@ extern const int IndicesToOtherLoads[4];
 extern const int IndicesConstantLoad[2];
 extern const int IndicesNightLoad[2];
 extern const int IndicesHeavyLoad[2];
-
 
 extern const uint8_t LengthAllSolarModules;
 extern const uint8_t LengthSolarModules[4];

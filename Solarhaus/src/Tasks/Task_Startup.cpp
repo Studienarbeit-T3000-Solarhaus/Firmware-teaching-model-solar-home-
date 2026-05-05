@@ -9,7 +9,7 @@
 #include <Adafruit_NeoPixel.h>
 #include "Config.hpp"
 
-// Hilfsfunktion für fatalen Fehler
+// Fatal error handler: red blinking LEDs indicate unrecoverable I2C failure
 void handleFatalI2CError() {
     bool state = false;
     while(1) {
@@ -18,10 +18,11 @@ void handleFatalI2CError() {
             Neopixels.setPixelColor(i, state ? Neopixels.Color(255, 0, 0) : 0);
         }
         Neopixels.show();
-        delay(200); // Schnelles Blinken (200ms an, 200ms aus)
+        delay(200);
     }
 }
 
+// One-shot task: initializes all hardware, validates I2C peripherals, then spawns application tasks
 void Task_Startup(void* pvParameters) {
     #ifdef DEBUG
     Serial.begin(115200);
@@ -29,26 +30,24 @@ void Task_Startup(void* pvParameters) {
     Serial.println("Startup Task is running...");
     #endif
      
-    // 1. Stromversorgung für Peripherie aktivieren
+    // Enable peripheral power rails
     pinMode(ENABLE_3V3_PIN, OUTPUT);
     digitalWrite(ENABLE_3V3_PIN, HIGH);
 
     pinMode(ENABLE_BATTERY_PIN, OUTPUT);
     digitalWrite(ENABLE_BATTERY_PIN, HIGH);
     
-    // Neopixel Pin initialisieren
     pinMode(NEOPIXEL_PIN, OUTPUT);
     digitalWrite(NEOPIXEL_PIN, LOW);
 
-    // 2. NeoPixel SOFORT initialisieren (für Fehlermeldungen)
     Neopixels.begin();
     Neopixels.setBrightness(255);
     Neopixels.clear();
     Neopixels.show();
 
-    delay(100); // Stabilisierung abwarten
+    delay(100);
 
-    // 3. I2C und Peripherie initialisieren
+    // Probe I2C devices (MCP23017 GPIO expander + INA3221 power monitor)
     bool i2cFatal = false;
 
     if(xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
@@ -70,7 +69,6 @@ void Task_Startup(void* pvParameters) {
         i2cFatal = true;
     }
 
-    // Wenn I2C Fehler -> Sofort blinken und hier stoppen!
     if (i2cFatal) {
         handleFatalI2CError();
     }
@@ -79,7 +77,7 @@ void Task_Startup(void* pvParameters) {
     printGPIOExpanderStatus();
     #endif
 
-    // Normaler Startup geht weiter...
+    // Configure ESP32 pins and set all MCP23017 outputs to safe default (LOW)
     pinMode(WAKEUP_PIN, INPUT_PULLUP); 
     pinMode(MPPT_PWM_PIN, OUTPUT);
     digitalWrite(MPPT_PWM_PIN, LOW);
@@ -98,8 +96,6 @@ void Task_Startup(void* pvParameters) {
     GPIOExpander.digitalWrite(ENABLE_BUCK_BOOST_CONVERTER, HIGH); 
     GPIOExpander.digitalWrite(BYPASS_MPPT, LOW);
 
-    
-
     #ifdef DEBUG
     Serial.println("NeoNeopixels Startup-Check (Green)");
     for(int i=0; i<3; i++) {
@@ -112,7 +108,7 @@ void Task_Startup(void* pvParameters) {
     }
     #endif
 
-    // Tasks erst jetzt erstellen
+    // Spawn all application tasks now that hardware is verified
     xTaskCreate(Task_Power_Sensing, "Power Sensing Task", STACK_SIZE_POWER_SENSING_TASK, NULL, PRIORITY_POWER_SENSING_TASK, &TaskHandle_Power_Sensing);
     xTaskCreate(Task_Control_GPIO, "GPIO Control Task", STACK_SIZE_CONTROL_GPIO_TASK, NULL, PRIORITY_CONTROL_GPIO_TASK, &TaskHandle_Control_GPIO);
     xTaskCreate(Task_Neopixel, "Neopixel Task", STACK_SIZE_NEOPIXEL_TASK, NULL, PRIORITY_NEOPIXEL_TASK, &TaskHandle_Neopixel);
@@ -129,6 +125,7 @@ void Task_Startup(void* pvParameters) {
     vTaskDelete(NULL);
 }
 
+// Diagnostic: prints current state of all MCP23017-controlled outputs
 void printGPIOExpanderStatus() {
   int pins[] = {SOLAR_CELL_1, SOLAR_CELL_2, SOLAR_CELL_3, SOLAR_CELL_4, 
                 ENABLE_BUCK_BOOST_CONVERTER, BYPASS_MPPT, CAPACITOR_3, CAPACITOR_4, 

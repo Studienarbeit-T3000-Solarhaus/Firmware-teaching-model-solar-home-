@@ -4,17 +4,14 @@
 #include "Config.hpp"
 #include "DebugConfig.hpp"
 
-// Task Handle für diesen Task selbst (wird in shared_data.cpp definiert)
 extern TaskHandle_t TaskHandle_Debug;
 
+// Periodic diagnostics task: prints stack high water marks and heap usage every 10s
 void Task_Debug(void* pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    
-    // Konstante für 10 Sekunden Delay
     const TickType_t xFrequency = pdMS_TO_TICKS(10000); 
 
     while(1) {
-        // Wir warten 10 Sekunden
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
 
         Serial.println("========================================");
@@ -41,20 +38,15 @@ void Task_Debug(void* pvParameters) {
             Serial.println(uxTaskGetStackHighWaterMark(TaskHandle_Neopixel));
         }
 
-        // Eigener Stack (NULL = aktueller Task)
         Serial.print("Debug Task (Self):   ");
         Serial.println(uxTaskGetStackHighWaterMark(NULL));
         
-        // Optional: Freier Heap Speicher gesamt
         Serial.print("System Free Heap:    ");
         Serial.println(esp_get_free_heap_size());
         
         Serial.println("========================================");
 
-        
         extern void printGPIOExpanderStatus();
         printGPIOExpanderStatus();
-
-        
     }
 }

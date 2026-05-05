@@ -8,17 +8,18 @@
 
 extern Adafruit_NeoPixel Neopixels;
 
+// Visualizes system energy flow on NeoPixel strip: solar input, capacitor state, and load consumption
 void Task_Neopixel(void* pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
     if (xSemaphoreTake(NeoPixelMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         Neopixels.begin();
-        Neopixels.setBrightness(255); // Global auf Max, Segmente dimmen intern
+        Neopixels.setBrightness(255);
         Neopixels.clear();
         Neopixels.show();
         xSemaphoreGive(NeoPixelMutex);
     }
     
-    // Initialize LED Segments
+    // Create LED segments for each part of the energy flow diagram
     AllSolarModulesIndices = new LedSegment(&Neopixels, IndicesAllSolarModules, LengthAllSolarModules, ColorCurrentflow);
     for(int i=0; i<4; i++) {
         SolarModules[i] = new LedSegment(&Neopixels, solarModulesIndices[i], LengthSolarModules[i], ColorCurrentflow);
@@ -32,16 +33,15 @@ void Task_Neopixel(void* pvParameters) {
     toOtherLoads = new LedSegment(&Neopixels, IndicesToOtherLoads, LengthToOtherLoads, ColorCurrentflow);
     constantLoad = new LedSegment(&Neopixels, IndicesConstantLoad, LengthConstantLoad, ColorCurrentflow);
     nightLoad = new LedSegment(&Neopixels, IndicesNightLoad, LengthNightLoad, ColorCurrentflow);
-    nightLoad->setExcludeLast(true); // Letzte LED leuchtet statisch als Lampe
-    nightLoad->setLastPixelColor(ColorWhite); // Nur die Lampe leuchtet weiß
-    nightLoad->setPulse(true);       // Die LED davor pulsiert (in Gelb/ColorCurrentflow)
+    nightLoad->setExcludeLast(true);
+    nightLoad->setLastPixelColor(ColorWhite);
+    nightLoad->setPulse(true);
     heavyLoad = new LedSegment(&Neopixels, IndicesHeavyLoad, LengthHeavyLoad, ColorCurrentflow);
     
     SystemState currentState;
 
     while(1) {
         if (xSemaphoreTake(NeoPixelMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-            // 1. Daten sicher aus dem Shared Memory holen
             if(xSemaphoreTake(dataMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
                 currentState = sysState; 
                 xSemaphoreGive(dataMutex);
@@ -51,20 +51,16 @@ void Task_Neopixel(void* pvParameters) {
                 #endif
             }
            
-            // =========================================================
-            // TEIL A: SOLAR
-            // =========================================================
+            // --- Solar segment animation: speed proportional to measured solar current ---
             float currentSolar = currentState.current_mA[0];
             int activeSolarCount = currentState.solarActiveCount;
             int solarAnimSpeed = 0; 
 
-            // 1. Basis-Geschwindigkeit berechnen
             if (currentSolar >= 1.0) {
                 float clampedCurrent = constrain(currentSolar, 1.0, 40.0);
                 solarAnimSpeed = map((long)clampedCurrent, 1, 40, 200, 30);
             }
 
-            // 2. Einzelne Module animieren (nur wenn aktiv)
             for(int i=0; i<4; i++) {
                 if (i < activeSolarCount) {
                     SolarModules[i]->setFlow(solarAnimSpeed, false);
@@ -74,7 +70,7 @@ void Task_Neopixel(void* pvParameters) {
                 }
             }
 
-            // 3. Hauptleitung (allSolarModules) beschleunigen je nach Anzahl
+            // Combined solar bus: faster with more active panels
             if (activeSolarCount > 0 && solarAnimSpeed > 0) {
                 int combinedSpeed = solarAnimSpeed / activeSolarCount;
                 if (combinedSpeed < 20) combinedSpeed = 20; 
@@ -85,29 +81,18 @@ void Task_Neopixel(void* pvParameters) {
             }
 
 
-            // =========================================================
-            // TEIL B: KONDENSATOREN
-            // =========================================================
-            
-            // --- B1. Hauptleitung (allCapacitors) Animation ---
+            // --- Capacitor segments: flow animation + fill-level bar with color gradient ---
             float currentBat = abs(currentState.current_mA[1]); 
             int activeBatCount = currentState.batteryActiveCount;
             int batAnimSpeed = 0;
 
             if (currentBat >= 1.0) {
                 float clampedBat = constrain(currentBat, 1.0, 100.0); 
-                // NEU: Werte erhöht. 
-                // 400ms (sehr langsam bei 1mA) bis 60ms (schnell bei Vollast 100mA)
                 batAnimSpeed = map((long)clampedBat, 1, 100, 400, 60);
             }
 
             if (activeBatCount > 0 && batAnimSpeed > 0) {
-                // NEU: Wir teilen nicht mehr durch activeBatCount, damit 
-                // das Lauflicht nicht unnatürlich schnell wird, wenn mehrere 
-                // Kondensatoren zugeschaltet sind.
                 int combinedBatSpeed = batAnimSpeed; 
-                
-                // Untergrenze (maximaler Speed) zur Sicherheit auf 40ms gesetzt
                 if (combinedBatSpeed < 40) combinedBatSpeed = 40; 
                 AllCapacitorsIndices->setFlow(combinedBatSpeed, false);
             } else {
@@ -115,7 +100,7 @@ void Task_Neopixel(void* pvParameters) {
                 AllCapacitorsIndices->clear();
             }
 
-            // --- B2. Füllstandsanzeige der einzelnen Kondensatoren ---
+            // Compute fill percentage and color (red→yellow→green) based on voltage
             float batVoltage = currentState.busVoltage[1]; 
             float minV = 1.2;
             float maxV = 6.1;
@@ -132,35 +117,25 @@ void Task_Neopixel(void* pvParameters) {
             if (maxV > minV) {
                 percentage = (batVoltage - minV) / (maxV - minV);
             }
-
-            // ... (Vorheriger Code für percentage bleibt gleich)
             if (percentage < 0.0) percentage = 0.0;
             if (percentage > 1.0) percentage = 1.0;
 
-            // --- NEU: Fließender Farb-Übergang (Rot -> Gelb -> Grün) ---
             uint8_t r, g;
-            uint8_t b = 0; // Blau brauchen wir für diese Farben nicht
+            uint8_t b = 0;
 
             if (percentage <= 0.5) {
-                // Untere Hälfte (0% bis 50%): Rot bleibt voll, Grün blendet sanft ein
-                // percentage * 2.0 rechnet den Bereich 0.0-0.5 auf 0.0-1.0 hoch
                 r = 255;
                 g = (uint8_t)(255.0 * (percentage * 2.0)); 
             } else {
-                // Obere Hälfte (50% bis 100%): Grün ist voll, Rot blendet sanft aus
-                // (1.0 - percentage) * 2.0 rechnet den Restbereich rückwärts auf 0.0-1.0
                 r = (uint8_t)(255.0 * ((1.0 - percentage) * 2.0));
                 g = 255;
             }
 
             uint32_t batColor = Neopixels.Color(r, g, b);
-            // -----------------------------------------------------------
 
             for(int i=0; i<4; i++) {
                 Capacitors[i]->setFlow(0, false);
-
                 if (i < activeBatCount) {
-                    // Wir übergeben die stufenlos berechnete Farbe
                     Capacitors[i]->fill(percentage, batColor);
                 } else {
                     Capacitors[i]->clear();
@@ -168,9 +143,7 @@ void Task_Neopixel(void* pvParameters) {
             }
 
 
-            // =========================================================
-            // TEIL C: LOADS
-            // =========================================================
+            // --- Load segments: animate active consumers, speed scales with total current ---
             float currentLoadTotal = currentState.current_mA[2]; 
             int loadBaseSpeed = 0;
 
@@ -179,21 +152,16 @@ void Task_Neopixel(void* pvParameters) {
                 loadBaseSpeed = map((long)clampedLoad, 5, 700, 200, 30);
             }
 
-            // 1. Zählen, wie viele Verbraucher an sind
             int activeLoadCount = 0;
             if (currentState.constantLoadOn) activeLoadCount++;
             if (currentState.nightLoadOn) activeLoadCount++;
             if (currentState.heavyLoadOn) activeLoadCount++;
 
-            // Fallback für die Animationsgeschwindigkeit, falls Loads eingeschaltet sind,
-            // aber (noch) nicht genug Strom gemessen wird
             int animSpeed = (loadBaseSpeed > 0) ? loadBaseSpeed : 200;
 
-            // 2. AllLoads & AfterBuckBoost: Aktiv, sobald IRGENDEINE Last aktiv ist
             if (activeLoadCount > 0) {
                 int combinedLoadSpeed = animSpeed / activeLoadCount;
                 if (combinedLoadSpeed < 20) combinedLoadSpeed = 20;
-                
                 allLoads->setFlow(combinedLoadSpeed, false);
                 AfterBuckBoost->setFlow(combinedLoadSpeed, false);
             } else {
@@ -203,7 +171,6 @@ void Task_Neopixel(void* pvParameters) {
                 AfterBuckBoost->clear();
             }
 
-            // 3. toOtherLoads: Aktiv, sobald Night Load ODER Heavy Load aktiv ist
             if (currentState.nightLoadOn || currentState.heavyLoadOn) {
                 toOtherLoads->setFlow(animSpeed, false);
             } else {
@@ -211,7 +178,6 @@ void Task_Neopixel(void* pvParameters) {
                 toOtherLoads->clear();
             }
 
-            // 4. Constant Load
             if (currentState.constantLoadOn) {
                 constantLoad->setFlow(animSpeed, false);
             } else {
@@ -219,7 +185,6 @@ void Task_Neopixel(void* pvParameters) {
                 constantLoad->clear();
             }
 
-            // 5. Night Load
             if (currentState.nightLoadOn) {
                 nightLoad->setFlow(animSpeed, false);
             } else {
@@ -227,7 +192,6 @@ void Task_Neopixel(void* pvParameters) {
                 nightLoad->clear();
             }
 
-            // 6. Heavy Load
             if (currentState.heavyLoadOn) {
                 heavyLoad->setFlow(animSpeed, false);
             } else {
@@ -236,17 +200,10 @@ void Task_Neopixel(void* pvParameters) {
             }
 
 
-            // =========================================================
-            // UPDATE & SHOW
-            // =========================================================
-            
+            // --- Commit all segment animations to the strip ---
             for(int i=0; i<4; i++) SolarModules[i]->update();
             AllSolarModulesIndices->update();
-            
-            // AllCapacitorsIndices läuft als Animation:
             AllCapacitorsIndices->update();
-            
-            // Die neuen Segmente updaten:
             allLoads->update();
             AfterBuckBoost->update();
             toOtherLoads->update();

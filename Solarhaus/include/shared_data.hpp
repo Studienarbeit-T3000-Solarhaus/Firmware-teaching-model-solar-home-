@@ -66,16 +66,15 @@ struct SystemState {
     bool nightLoadOn;
     bool heavyLoadOn;
 
-    bool isSimActive;           // Ist der Zyklus aktiv?
-    bool isDayPhase;            // Sind wir gerade am Tag?
-    unsigned long simTimerStart; // Wann hat die aktuelle Phase begonnen?
-    int dayDurationSec;         // Dauer Tag in Sekunden
-    int nightDurationSec;       // Dauer Nacht in Sekunden
+    bool isSimActive;          
+    bool isDayPhase;           
+    unsigned long simTimerStart; 
+    int dayDurationSec;         
+    int nightDurationSec;       
 
-    // --- Gespeicherte Start-Konfiguration ---
-    int configSolarCount;   // User-Einstellung für Solar
-    int configBatteryCount; // User-Einstellung für Kondensatoren (NEU)
-    // Zeitpläne für fiktive Simulation (AUTO-Modus)
+    int configSolarCount;   
+    int configBatteryCount; 
+
     bool schedConstActive;
     int schedConstStartH, schedConstStartM;
     int schedConstEndH, schedConstEndM;
@@ -87,18 +86,16 @@ struct SystemState {
     bool schedHeavyActive;
     int schedHeavyStartH, schedHeavyStartM;
     int schedHeavyEndH, schedHeavyEndM;
-    // --- NEU: Zyklen ---
-    int targetCycles;       // Wie viele Zyklen sollen laufen?
-    int currentCycle;       // Wo sind wir gerade?
 
-    // Irgendwo innerhalb deiner struct SystemState:
+    int targetCycles;       
+    int currentCycle;      
+
     bool mpptBypassOn = false;
     float adcBatteryPercentage = 0.0f; 
 };
 
-// Struktur für einen Datenpunkt
 struct SimDataPoint {
-    unsigned long timestamp; // Zeit in ms seit Start der Sim
+    unsigned long timestamp; 
     float vSolar, iSolar;
     float vBat, iBat;
 };
@@ -109,5 +106,5 @@ extern Adafruit_MCP23X17 GPIOExpander;
 extern Adafruit_NeoPixel Neopixels;
 extern SystemState sysState;
 
-extern std::vector<SimDataPoint> simulationLog; // <--- NEU
-extern SemaphoreHandle_t logMutex;              // <--- NEU
+extern std::vector<SimDataPoint> simulationLog;
+extern SemaphoreHandle_t logMutex;             

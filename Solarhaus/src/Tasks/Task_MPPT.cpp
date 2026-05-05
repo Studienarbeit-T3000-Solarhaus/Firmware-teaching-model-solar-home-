@@ -5,129 +5,92 @@
 #include "DebugConfig.hpp"
 #include <Arduino.h>
 
-// --- KONFIGURATION FÜR 100k/10k/10k SETUP ---
-
-// Hardware-Setup:
-// R_Top = 100k, R_Bottom = 10k -> V_native = 6.6V
-// R_Inject = 10k an ESP32
-//
-// Formel: V_out = 12.6V - 10 * V_inject
-//
-// PWM 0   (0.0V) -> 12.6V Output -> ZERSTÖRUNG!
-// PWM 52  (0.67V)-> 5.9V Output  -> MAXIMALE POWER (Spannungsgrenze Kondensator)
-// PWM 100 (1.3V) -> 0.0V Output  -> BUCK AUS (Startzustand)
-// PWM 115 (>1.5V)-> Latch-Off    -> CHIP ABSTURZ
-
+// PWM controls a buck converter via voltage injection (R_inject = 10k into 100k/10k divider).
+// Lower PWM duty = higher output voltage (inverted relationship).
 const int MPPT_PWM_CHANNEL = 0;
 const int MPPT_PWM_FREQ = 20000;
 const int MPPT_PWM_RES = 8;
 
-// SICHERHEITSGRENZEN (Nicht ändern ohne Nachrechnen!)
-const int PWM_LIMIT_MIN_VOLTAGE = 100; // Entspricht ca. 0V Ausgang (Buck aus)
-const int PWM_LIMIT_MAX_VOLTAGE = 52;  // Entspricht ca. 6.0V Ausgang (Max für Kondensator)
+// Safety bounds: PWM 100 ≈ 0V out (off), PWM 52 ≈ 6V out (capacitor max)
+const int PWM_LIMIT_MIN_VOLTAGE = 100;
+const int PWM_LIMIT_MAX_VOLTAGE = 52;
 
-// Achtung: Invertierte Logik für den Programmierer!
-// Kleinerer PWM Wert = HÖHERE Ausgangsspannung = MEHR Last
-// Größerer PWM Wert = NIEDRIGERE Ausgangsspannung = WENIGER Last
-
+// MPPT task: sweeps solar operating point to find peak power, then tracks it
 void Task_MPPT(void* pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
-    // 1. PWM Setup
     ledcSetup(MPPT_PWM_CHANNEL, MPPT_PWM_FREQ, MPPT_PWM_RES);
     ledcAttachPin(MPPT_PWM_PIN, MPPT_PWM_CHANNEL);
 
-    // 2. Sicherer Startzustand (Buck "Aus")
-    // Wir fangen mit hoher Injektion an -> Ausgangsspannung niedrig
-    int currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE; // ca. 100
+    // Start with buck disabled (safe state)
+    int currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE;
     ledcWrite(MPPT_PWM_CHANNEL, currentDutyCycle);
 
-    // --- Variablen für Spannungs-Sweep Algorithmus ---
     enum SweepState { SWEEP, TRACK };
     SweepState mpptState = SWEEP;
-    int sweepPwm = PWM_LIMIT_MAX_VOLTAGE; // Start bei maximaler Last (niedrigste Solarspannung)
+    int sweepPwm = PWM_LIMIT_MAX_VOLTAGE;
     float maxPowerDuringSweep = 0.0;
-    int bestPwm = PWM_LIMIT_MIN_VOLTAGE;  // Sicherer Startwert
-    int stepsSinceMax = 0;                // Zähler, um "etwas weiter zu suchen"
+    int bestPwm = PWM_LIMIT_MIN_VOLTAGE;
+    int stepsSinceMax = 0;
 
     while (1) {
         float currentSolarPower = 0.0;
         float currentSolarVoltage = 0.0;
         float outputCapVoltage = 0.0;
-        
         bool dataValid = false;
 
-        // --- DATEN HOLEN ---
         if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-            // INA3221 Channel 0 = Solar Input
             currentSolarPower = sysState.power_mW[0];
             currentSolarVoltage = sysState.busVoltage[0];
-            
-            // INA3221 Channel 1 (oder 2?) = Ausgang/Kondensator
-            // Bitte prüfen, wo dein Ausgang angeschlossen ist! 
-            // Ich nehme hier Index 1 an (Channel 2 des INA).
             outputCapVoltage = sysState.busVoltage[1]; 
-            
             dataValid = true;
             xSemaphoreGive(dataMutex);
         }
 
         if (dataValid) {
             
-            // --- NOT-AUS: ÜBERSPANNUNGSSCHUTZ ---
-            // Wenn Kondensator über 6.1V geht, sofort abregeln!
+            // Overvoltage emergency: immediately shut down buck if cap exceeds 6.1V
             if (outputCapVoltage > 6.1) {
-                // PWM erhöhen -> Spannung senken
-                currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE; // Buck aus (0V Ziel)
+                currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE;
                 ledcWrite(MPPT_PWM_CHANNEL, currentDutyCycle);
-                
-                // Algorithmus für diesen Durchlauf abbrechen
                 vTaskDelayUntil(&xLastWakeTime, PERIOD_MPPT_TASK);
                 continue; 
             }
 
-            // --- STEUERUNG: AUTO MPPT (Spannungs-Sweep mit Peak-Tracking) ---
-                
-            // 1. Wenn Solarspannung kritisch tief (< 3.0V), Last wegnehmen
+            // If solar voltage collapses, remove load and restart sweep
             if (currentSolarVoltage < 3.0) {
-                currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE; // Buck fast aus
-                mpptState = SWEEP;                        // Neustart des Sweeps beim nächsten Mal
-                sweepPwm = PWM_LIMIT_MAX_VOLTAGE;         // Beginne wieder bei hoher Last
+                currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE;
+                mpptState = SWEEP;
+                sweepPwm = PWM_LIMIT_MAX_VOLTAGE;
                 maxPowerDuringSweep = 0.0;
                 stepsSinceMax = 0;
             } 
             else {
                 if (mpptState == SWEEP) {
+                    // Incrementally sweep from max load toward open circuit, tracking peak power
                     currentDutyCycle = sweepPwm;
 
-                    // 2. Leistung auswerten und sich den besten Wert "merken"
                     if (currentSolarPower > maxPowerDuringSweep) {
                         maxPowerDuringSweep = currentSolarPower;
                         bestPwm = sweepPwm;
-                        stepsSinceMax = 0; // Zähler zurücksetzen, da neues Maximum gefunden
+                        stepsSinceMax = 0;
                     } else if (maxPowerDuringSweep > 5.0) {
-                        // Leistung sinkt wieder (und wir haben schon ein echtes Maximum > 5mW gesehen)
                         stepsSinceMax++;
                     }
 
-                    // 3. Spannung der Solarzelle kontinuierlich von "null weg" erhöhen 
-                    // (PWM erhöhen = weniger Last = höhere Solarspannung)
                     sweepPwm += 1; 
 
-                    // 4. Abbruchkriterium: 
-                    // Entweder wir stoßen ans Limit, oder wir haben "noch etwas weiter gesucht" 
-                    // (z.B. 5 PWM-Schritte) und die Leistung sinkt nur noch ab.
+                    // End sweep when limit reached or power clearly past peak
                     if (sweepPwm > PWM_LIMIT_MIN_VOLTAGE || stepsSinceMax >= 5) {
                         mpptState = TRACK;
-                        currentDutyCycle = bestPwm; // Zum gemerkten besten Leistungs-Wert springen
+                        currentDutyCycle = bestPwm;
                     }
                 } 
                 else if (mpptState == TRACK) {
-                    // 5. Auf dem besten Punkt arbeiten
+                    // Hold at optimal operating point
                     currentDutyCycle = bestPwm;
 
-                    // Wenn die Leistung am optimalen Punkt plötzlich stark einbricht 
-                    // (z. B. durch eine neue Wolke), starten wir die Suche komplett neu.
+                    // Re-sweep if power drops significantly (e.g. shading change)
                     if (currentSolarPower < maxPowerDuringSweep * 0.8) {
                         mpptState = SWEEP;
                         sweepPwm = PWM_LIMIT_MAX_VOLTAGE;
@@ -137,17 +100,14 @@ void Task_MPPT(void* pvParameters) {
                 }
             }
 
-            // --- HARTE LIMITS (CLAMPING) ---
-            // Das ist der wichtigste Teil zum Schutz der Hardware!
-            if (currentDutyCycle < PWM_LIMIT_MAX_VOLTAGE) currentDutyCycle = PWM_LIMIT_MAX_VOLTAGE; // min 52
-            if (currentDutyCycle > PWM_LIMIT_MIN_VOLTAGE) currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE; // max 105
+            // Hard clamp PWM to safe hardware limits
+            if (currentDutyCycle < PWM_LIMIT_MAX_VOLTAGE) currentDutyCycle = PWM_LIMIT_MAX_VOLTAGE;
+            if (currentDutyCycle > PWM_LIMIT_MIN_VOLTAGE) currentDutyCycle = PWM_LIMIT_MIN_VOLTAGE;
 
-            // --- AUSGABE ---
             ledcWrite(MPPT_PWM_CHANNEL, currentDutyCycle);
         }
 
         #ifdef DEBUG
-        // Debug-Ausgabe
         Serial.print("MPPT | Solar: ");
         Serial.print(currentSolarVoltage, 2);
         Serial.print("V, ");
@@ -158,7 +118,6 @@ void Task_MPPT(void* pvParameters) {
         Serial.println(currentDutyCycle);
         #endif
 
-        // Zykluszeit einhalten
         vTaskDelayUntil(&xLastWakeTime, PERIOD_MPPT_TASK);
     }
 }
